@@ -1,5 +1,5 @@
 import * as TaskManager from "expo-task-manager";
-import * as BackgroundFetch from "expo-background-fetch";
+import * as BackgroundTask from "expo-background-task";
 import { loadSettings } from "../storage/settings";
 import { getProvider } from "../api";
 import { recordSnapshot, getDailyUsage } from "../storage/balanceHistory";
@@ -11,12 +11,12 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
   try {
     const settings = await loadSettings();
     if (!settings.apiKey) {
-      return BackgroundFetch.BackgroundFetchResult.NoData;
+      return BackgroundTask.BackgroundTaskResult.Success;
     }
 
     const provider = getProvider(settings.provider);
     if (!provider) {
-      return BackgroundFetch.BackgroundFetchResult.Failed;
+      return BackgroundTask.BackgroundTaskResult.Failed;
     }
 
     const result = await provider.getBalance(settings.apiKey);
@@ -41,19 +41,17 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
     const todayCost = dailyUsage.length > 0 ? dailyUsage[0].cost : 0;
     await sendRefreshNotification(total, todayCost, currency);
 
-    return BackgroundFetch.BackgroundFetchResult.NewData;
+    return BackgroundTask.BackgroundTaskResult.Success;
   } catch {
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
 });
 
 export async function registerBackgroundFetch(intervalMinutes: number): Promise<void> {
-  const minimumInterval = Math.max(intervalMinutes, 15); // Minimum 15 minutes per platform limits
+  const minimumInterval = Math.max(intervalMinutes, 15); // Minimum 15 minutes
   try {
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-      minimumInterval: minimumInterval * 60,
-      stopOnTerminate: false,
-      startOnBoot: true,
+    await BackgroundTask.registerTaskAsync(BACKGROUND_FETCH_TASK, {
+      minimumInterval, // minutes (not seconds)
     });
   } catch (e) {
     console.warn("Background fetch registration failed:", e);
@@ -62,7 +60,7 @@ export async function registerBackgroundFetch(intervalMinutes: number): Promise<
 
 export async function unregisterBackgroundFetch(): Promise<void> {
   try {
-    await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
+    await BackgroundTask.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
   } catch {
     // Task may not be registered
   }

@@ -27,10 +27,6 @@ function formatDate(isoDate: string): string {
   }
 }
 
-function formatCost(cost: number): string {
-  return cost.toFixed(4);
-}
-
 export default function UsageChart({ dailyUsage }: Props) {
   if (!dailyUsage || dailyUsage.length === 0) {
     return (
@@ -60,6 +56,8 @@ export default function UsageChart({ dailyUsage }: Props) {
     backgroundGradientFrom: colors.surface,
     backgroundGradientTo: colors.surface,
     decimalPlaces: 4,
+    formatYLabel: (value: string) => parseFloat(value).toFixed(4),
+    formatTopBarValue: (value: number) => value.toFixed(4),
     color: (opacity = 1) => {
       const hex = colors.primary.replace("#", "");
       const r = parseInt(hex.substring(0, 2), 16);

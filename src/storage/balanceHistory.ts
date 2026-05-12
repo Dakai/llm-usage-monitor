@@ -51,7 +51,15 @@ export async function getDailyUsage(
   const raw = await AsyncStorage.getItem(SNAPSHOTS_KEY);
   if (!raw) return [];
 
-  const snapshots: BalanceSnapshot[] = JSON.parse(raw);
+  const allSnapshots: BalanceSnapshot[] = JSON.parse(raw);
+  const snapshots = allSnapshots
+    .filter((s) => s.currency === currency)
+    .sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+  if (snapshots.length === 0) return [];
+
   const pricing = deepseekProvider.pricing;
   const avgPricePerToken = (pricing.inputCacheMiss + pricing.output) / 2;
 
@@ -59,47 +67,45 @@ export async function getDailyUsage(
   const today = new Date();
 
   for (let i = days - 1; i >= 0; i--) {
-    const target = new Date(today);
-    target.setDate(target.getDate() - i);
-    target.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(target);
+    const dayStart = new Date(today);
+    dayStart.setDate(dayStart.getDate() - i);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    const daySnapshots = snapshots
-      .filter(
-        (s) =>
-          s.currency === currency &&
-          new Date(s.timestamp) >= target &&
-          new Date(s.timestamp) <= dayEnd
-      )
-      .sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-
-    if (daySnapshots.length >= 2) {
-      const first = daySnapshots[0];
-      const last = daySnapshots[daySnapshots.length - 1];
-      const cost = Math.max(0, first.totalBalance - last.totalBalance);
-      const estimatedTokens = avgPricePerToken > 0 ? cost / avgPricePerToken : 0;
-
-      result.push({
-        date: target.toISOString().split("T")[0],
-        currency,
-        balanceStart: first.totalBalance,
-        balanceEnd: last.totalBalance,
-        cost,
-        estimatedTokens,
-      });
-    } else if (daySnapshots.length === 1) {
-      result.push({
-        date: target.toISOString().split("T")[0],
-        currency,
-        balanceStart: daySnapshots[0].totalBalance,
-        balanceEnd: daySnapshots[0].totalBalance,
-        cost: 0,
-        estimatedTokens: 0,
-      });
+    // balanceStart: latest snapshot on or before dayStart (may be from previous day)
+    let startSnapshot: BalanceSnapshot | null = null;
+    for (let j = snapshots.length - 1; j >= 0; j--) {
+      if (new Date(snapshots[j].timestamp) <= dayStart) {
+        startSnapshot = snapshots[j];
+        break;
+      }
     }
+
+    // balanceEnd: latest snapshot on or before dayEnd
+    let endSnapshot: BalanceSnapshot | null = null;
+    for (let j = snapshots.length - 1; j >= 0; j--) {
+      if (new Date(snapshots[j].timestamp) <= dayEnd) {
+        endSnapshot = snapshots[j];
+        break;
+      }
+    }
+
+    // Need both a start and end, and they must be different snapshots
+    if (!startSnapshot || !endSnapshot) continue;
+    if (startSnapshot.timestamp === endSnapshot.timestamp) continue;
+
+    const cost = Math.max(0, startSnapshot.totalBalance - endSnapshot.totalBalance);
+    const estimatedTokens = avgPricePerToken > 0 ? cost / avgPricePerToken : 0;
+
+    result.push({
+      date: dayStart.toISOString().split("T")[0],
+      currency,
+      balanceStart: startSnapshot.totalBalance,
+      balanceEnd: endSnapshot.totalBalance,
+      cost,
+      estimatedTokens,
+    });
   }
 
   return result;

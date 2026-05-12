@@ -23,13 +23,14 @@ function formatCost(cost: number): string {
 }
 
 function formatTokens(count: number): string {
-  if (count >= 1_000_000) {
-    return `~${(count / 1_000_000).toFixed(1)}M tokens`;
+  const rounded = Math.round(count);
+  if (rounded >= 1_000_000) {
+    return `~${(rounded / 1_000_000).toFixed(1)}M tokens`;
   }
-  if (count >= 1_000) {
-    return `~${Math.round(count / 1000)}K tokens`;
+  if (rounded >= 1_000) {
+    return `~${Math.round(rounded / 1000)}K tokens`;
   }
-  return `~${count} tokens`;
+  return `~${rounded} tokens`;
 }
 
 function formatDelta(start: number, end: number): string {
@@ -60,23 +61,30 @@ export default function DashboardScreen() {
 
   const [refreshing, setRefreshing] = React.useState(false);
 
+  const refreshAll = useCallback(async () => {
+    await refreshBalance();
+    await reloadHistory(7);
+  }, [refreshBalance, reloadHistory]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refreshBalance(), reloadHistory(7)]);
+    await refreshAll();
     setRefreshing(false);
-  }, [refreshBalance, reloadHistory]);
+  }, [refreshAll]);
 
   const handleRefreshTap = useCallback(() => {
-    refreshBalance();
-    reloadHistory(7);
-  }, [refreshBalance, reloadHistory]);
+    refreshAll();
+  }, [refreshAll]);
 
-  // Re-check settings and refresh balance when tab gains focus
+  // Re-check settings and refresh when tab gains focus
   useFocusEffect(
     useCallback(() => {
-      reloadSettings();
-      refreshBalance();
-    }, [reloadSettings, refreshBalance])
+      const load = async () => {
+        await reloadSettings();
+        await refreshAll();
+      };
+      load();
+    }, [reloadSettings, refreshAll])
   );
 
   const isRefreshing = refreshing || balanceLoading || historyLoading;

@@ -2,6 +2,8 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { colors } from "../theme";
 
+export const STATS_NOTIFICATION_ID = "stats-display";
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -34,6 +36,12 @@ export async function setupNotifications(): Promise<boolean> {
       sound: "default",
       bypassDnd: true,
     });
+    await Notifications.setNotificationChannelAsync("stats-display", {
+      name: "使用统计",
+      importance: Notifications.AndroidImportance.LOW,
+      sound: null,
+      bypassDnd: false,
+    });
   }
 
   return true;
@@ -55,6 +63,9 @@ export async function sendBalanceNotification(
       sound: "default",
       priority: Notifications.AndroidNotificationPriority.HIGH,
       data: { type: "low-balance", balance: totalBalance, threshold },
+      ...(Platform.OS === "android" && {
+        channelId: "balance-alerts",
+      }),
     },
     trigger: null, // immediate
   });
@@ -71,11 +82,19 @@ export async function sendRefreshNotification(
       ? `余额: ${symbol}${totalBalance.toFixed(2)} | 今日花费: ${symbol}${costToday.toFixed(4)}`
       : `余额: ${symbol}${totalBalance.toFixed(2)} | 今日暂无花费`;
 
+  // Cancel previous so this updates in-place
+  await Notifications.dismissNotificationAsync(STATS_NOTIFICATION_ID);
+
   await Notifications.scheduleNotificationAsync({
+    identifier: STATS_NOTIFICATION_ID,
     content: {
       title: "LLM Usage Monitor",
       body,
+      autoDismiss: false,
       data: { type: "periodic-update", balance: totalBalance, costToday },
+      ...(Platform.OS === "android" && {
+        channelId: "stats-display",
+      }),
     },
     trigger: null,
   });

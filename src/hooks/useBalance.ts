@@ -10,7 +10,7 @@ interface UseBalanceReturn {
   isLoading: boolean;
   error: string | null;
   lastRefreshed: Date | null;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<BalanceResult | null>;
 }
 
 export function useBalance(): UseBalanceReturn {
@@ -20,7 +20,7 @@ export function useBalance(): UseBalanceReturn {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const isMounted = useRef(true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<BalanceResult | null> => {
     setIsLoading(true);
     setError(null);
 
@@ -29,14 +29,14 @@ export function useBalance(): UseBalanceReturn {
       if (!settings.apiKey) {
         setError("请先设置 API Key");
         setIsLoading(false);
-        return;
+        return null;
       }
 
       const provider = getProvider(settings.provider);
       if (!provider) {
         setError(`不支持的提供商: ${settings.provider}`);
         setIsLoading(false);
-        return;
+        return null;
       }
 
       const result = await provider.getBalance(settings.apiKey);
@@ -55,10 +55,13 @@ export function useBalance(): UseBalanceReturn {
         setBalanceResult(result);
         setLastRefreshed(new Date());
       }
+
+      return result;
     } catch (e) {
       if (isMounted.current) {
         setError(e instanceof Error ? e.message : "获取余额失败");
       }
+      return null;
     } finally {
       if (isMounted.current) {
         setIsLoading(false);

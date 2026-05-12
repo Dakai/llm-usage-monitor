@@ -6,7 +6,7 @@ interface UseHistoryReturn {
   dailyUsage: DailyUsage[];
   isLoading: boolean;
   error: string | null;
-  reload: (days?: number) => Promise<void>;
+  reload: (days?: number) => Promise<DailyUsage[]>;
   todayUsage: DailyUsage | null;
   monthlyCost: number;
 }
@@ -17,7 +17,7 @@ export function useHistory(): UseHistoryReturn {
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(true);
 
-  const reload = useCallback(async (days: number = 7) => {
+  const reload = useCallback(async (days: number = 7): Promise<DailyUsage[]> => {
     setIsLoading(true);
     setError(null);
 
@@ -26,10 +26,12 @@ export function useHistory(): UseHistoryReturn {
       if (isMounted.current) {
         setDailyUsage(data);
       }
+      return data;
     } catch (e) {
       if (isMounted.current) {
         setError(e instanceof Error ? e.message : "获取历史数据失败");
       }
+      return [];
     } finally {
       if (isMounted.current) {
         setIsLoading(false);

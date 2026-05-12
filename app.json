@@ -15,7 +15,6 @@
       "bundleIdentifier": "com.llmusagemonitor.app",
       "infoPlist": {
         "UIBackgroundModes": [
-          "fetch",
           "processing"
         ]
       }
@@ -43,7 +42,7 @@
           "color": "#1E90FF"
         }
       ],
-      "expo-background-fetch",
+      "expo-background-task",
       "expo-task-manager"
     ],
     "extra": {

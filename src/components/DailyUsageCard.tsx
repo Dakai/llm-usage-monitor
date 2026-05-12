@@ -27,13 +27,14 @@ function formatCost(cost: number): string {
 }
 
 function formatTokens(count: number): string {
-  if (count >= 1_000_000) {
-    return `~${(count / 1_000_000).toFixed(1)}M tokens`;
+  const rounded = Math.round(count);
+  if (rounded >= 1_000_000) {
+    return `~${(rounded / 1_000_000).toFixed(1)}M tokens`;
   }
-  if (count >= 1_000) {
-    return `~${Math.round(count / 1000)}K tokens`;
+  if (rounded >= 1_000) {
+    return `~${Math.round(rounded / 1000)}K tokens`;
   }
-  return `~${count} tokens`;
+  return `~${rounded} tokens`;
 }
 
 export default function DailyUsageCard({ usage }: Props) {
