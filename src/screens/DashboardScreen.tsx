@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useBalance } from "../hooks/useBalance";
 import { useHistory } from "../hooks/useHistory";
 import { useSettings } from "../hooks/useSettings";
@@ -56,7 +56,7 @@ export default function DashboardScreen() {
     todayUsage,
     monthlyCost,
   } = useHistory();
-  const { settings, isLoading: settingsLoading } = useSettings();
+  const { settings, isLoading: settingsLoading, reload: reloadSettings } = useSettings();
 
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -70,6 +70,14 @@ export default function DashboardScreen() {
     refreshBalance();
     reloadHistory(7);
   }, [refreshBalance, reloadHistory]);
+
+  // Re-check settings and refresh balance when tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      reloadSettings();
+      refreshBalance();
+    }, [reloadSettings, refreshBalance])
+  );
 
   const isRefreshing = refreshing || balanceLoading || historyLoading;
   const combinedError = balanceError || historyError;
