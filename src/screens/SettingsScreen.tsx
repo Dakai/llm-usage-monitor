@@ -11,10 +11,18 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useSettings } from "../hooks/useSettings";
 import { getAvailableProviders } from "../api";
 import { AppSettings, ProviderType } from "../types";
 import { colors, spacing, borderRadius, fontSize, shadows } from "../theme";
+
+function maskApiKey(key: string): string {
+  if (!key) return "";
+  if (key.length <= 8) return key[0] + "••••••••";
+  return key.slice(0, 3) + "••••••••" + key.slice(-4);
+}
 
 interface FormState {
   apiKey: string;
@@ -39,6 +47,8 @@ export default function SettingsScreen() {
     provider: "deepseek",
   });
   const [showApiKey, setShowApiKey] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricAuthenticated, setBiometricAuthenticated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<SaveStatus>(null);
 
@@ -52,6 +62,47 @@ export default function SettingsScreen() {
       });
     }
   }, [settings]);
+
+  // Check biometric availability on mount
+  useEffect(() => {
+    (async () => {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      if (!compatible) return;
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      setBiometricAvailable(enrolled);
+    })();
+  }, []);
+
+  // Reset biometric auth when leaving the tab
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setBiometricAuthenticated(false);
+        setShowApiKey(false);
+      };
+    }, [])
+  );
+
+  const handleToggleApiKey = useCallback(async () => {
+    if (showApiKey) {
+      // Hiding — just toggle
+      setShowApiKey(false);
+      return;
+    }
+
+    // Showing — require biometric if available
+    if (biometricAvailable && !biometricAuthenticated) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "验证身份以查看 API Key",
+        fallbackLabel: "使用设备密码",
+        disableDeviceFallback: false,
+      });
+      if (!result.success) return;
+      setBiometricAuthenticated(true);
+    }
+
+    setShowApiKey(true);
+  }, [showApiKey, biometricAvailable, biometricAuthenticated]);
 
   const updateField = useCallback(
     (field: keyof FormState, value: string) => {
@@ -150,22 +201,25 @@ export default function SettingsScreen() {
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.input}
-                value={form.apiKey}
+                value={showApiKey ? form.apiKey : maskApiKey(form.apiKey)}
                 onChangeText={(v) => updateField("apiKey", v)}
                 placeholder="sk-..."
                 placeholderTextColor={colors.textMuted}
-                secureTextEntry={!showApiKey}
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={showApiKey}
                 selectionColor={colors.primary}
               />
               <TouchableOpacity
-                style={styles.toggleButton}
+                style={[
+                  styles.toggleButton,
+                  biometricAvailable && !biometricAuthenticated && styles.toggleButtonLocked,
+                ]}
                 activeOpacity={0.7}
-                onPress={() => setShowApiKey((prev) => !prev)}
+                onPress={handleToggleApiKey}
               >
                 <Text style={styles.toggleButtonText}>
-                  {showApiKey ? "隐藏" : "显示"}
+                  {showApiKey ? "隐藏" : biometricAvailable ? "🔒 显示" : "显示"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -378,6 +432,9 @@ const styles = StyleSheet.create({
     borderColor: colors.surfaceBorder,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
+  },
+  toggleButtonLocked: {
+    borderColor: colors.warning,
   },
   toggleButtonText: {
     color: colors.primary,

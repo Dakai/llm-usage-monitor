@@ -74,11 +74,21 @@ export async function getDailyUsage(
     dayEnd.setHours(23, 59, 59, 999);
 
     // balanceStart: latest snapshot on or before dayStart (may be from previous day)
+    // If none, fall back to earliest snapshot on or after dayStart
     let startSnapshot: BalanceSnapshot | null = null;
     for (let j = snapshots.length - 1; j >= 0; j--) {
       if (new Date(snapshots[j].timestamp) <= dayStart) {
         startSnapshot = snapshots[j];
         break;
+      }
+    }
+    if (!startSnapshot) {
+      // No snapshot at or before midnight — use first snapshot after (today only)
+      for (let j = 0; j < snapshots.length; j++) {
+        if (new Date(snapshots[j].timestamp) >= dayStart) {
+          startSnapshot = snapshots[j];
+          break;
+        }
       }
     }
 
@@ -91,11 +101,17 @@ export async function getDailyUsage(
       }
     }
 
-    // Need both a start and end, and they must be different snapshots
+    // Need at least a start and end
     if (!startSnapshot || !endSnapshot) continue;
-    if (startSnapshot.timestamp === endSnapshot.timestamp) continue;
 
-    const cost = Math.max(0, startSnapshot.totalBalance - endSnapshot.totalBalance);
+    // Same snapshot means only one data point covering this period
+    const isToday = i === 0;
+    const isSame = startSnapshot.timestamp === endSnapshot.timestamp;
+    if (isSame && !isToday) continue;
+
+    const cost = isSame
+      ? 0
+      : Math.max(0, startSnapshot.totalBalance - endSnapshot.totalBalance);
     const estimatedTokens = avgPricePerToken > 0 ? cost / avgPricePerToken : 0;
 
     result.push({
