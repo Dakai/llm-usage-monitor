@@ -1,17 +1,20 @@
 # AGENTS.md — llm-usage-monitor
 
 ## Stack
-- **Expo SDK 52** managed workflow (no native iOS/Android code)
-- **React Native 0.76** with New Architecture enabled (`app.json`: `"newArchEnabled": true`)
-- **TypeScript** (strict mode), no test framework, no CI
+- **Expo SDK 53** managed workflow (no native iOS/Android code)
+- **React 19.0.0**, **React Native 0.79** with New Architecture enabled (default in SDK 53)
+- **TypeScript ~5.8** (strict mode), no test framework, no CI
+- **Bun** is the package manager (use `bun add`, `bun run`, `bun x`)
 
 ## Commands
 ```bash
-npm run ts:check     # TypeScript type-checking (tsc --noEmit)
-npm start            # expo start (dev server)
-npm run android      # expo start --android
-npm run ios          # expo start --ios
-npm run web          # expo start --web
+bun run ts:check     # TypeScript type-checking (tsc --noEmit)
+bun start            # expo start (dev server)
+bun run android      # expo start --android
+bun run ios          # expo start --ios
+bun run web          # expo start --web
+bun x expo install --check  # verify Expo package version compatibility
+bun x expo install --fix    # auto-resolve Expo package versions
 ```
 
 There is no lint, format, or test command configured.
@@ -58,6 +61,15 @@ All hooks use `useRef(true)` + `isMounted.current` to prevent state updates afte
 
 ### Dark theme only
 `app.json` sets `"userInterfaceStyle": "dark"`. All visual tokens in `src/theme/index.ts`. Never introduce light-mode code paths.
+
+### expo-background-fetch deprecated → migrate to expo-background-task
+`expo-background-fetch` was **deprecated** in SDK 53 (iOS Background Fetch removed in iOS 13). Replacement is `expo-background-task` (`BGTaskScheduler`/`WorkManager`). The app still uses the legacy API — migrate when possible. Key differences: `minimumInterval` changes from seconds to **minutes**, `stopOnTerminate`/`startOnBoot` removed (automatic).
+
+### Push notifications no longer in Expo Go for Android (SDK 53)
+Requires a **development build** (`npx expo run:android`) for push notification testing on Android. iOS Expo Go still works.
+
+### Edge-to-edge Android
+SDK 53 enables edge-to-edge by default for new projects. Existing projects are opt-in via `app.json` (`expo.android.edgeToEdgeEnabled`). Not yet enabled in this project.
 
 ### Background fetch minimum interval
 `expo-background-fetch` enforces a **15-minute minimum** interval. The `registerBackgroundFetch` function in `src/tasks/backgroundFetch.ts` silently clamps lower values.
