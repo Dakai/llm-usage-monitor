@@ -14,7 +14,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.llmusagemonitor.app",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch", "processing"]
+        "UIBackgroundModes": [
+          "fetch",
+          "processing"
+        ]
       }
     },
     "android": {
@@ -22,7 +25,13 @@
         "backgroundColor": "#0A1628"
       },
       "package": "com.llmusagemonitor.app",
-      "permissions": ["RECEIVE_BOOT_COMPLETED", "SCHEDULE_EXACT_ALARM", "POST_NOTIFICATIONS"]
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
+      ]
     },
     "plugins": [
       [
@@ -34,6 +43,11 @@
       ],
       "expo-background-fetch",
       "expo-task-manager"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "71c73d93-6053-437f-a8c6-7e903aaf8914"
+      }
+    }
   }
 }
