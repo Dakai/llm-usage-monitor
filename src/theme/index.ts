@@ -1,19 +1,46 @@
+import { Platform } from "react-native";
+
 export const colors = {
-  background: "#0A1628",
-  surface: "#0F1F3A",
-  surfaceLight: "#15294A",
-  surfaceBorder: "#1E3A5F",
-  primary: "#1E90FF",
-  primaryLight: "#4DA8FF",
-  primaryDark: "#1565C0",
-  accent: "#00B4D8",
-  success: "#4CAF50",
-  warning: "#FF9800",
-  danger: "#F44336",
-  text: "#E8F0FE",
-  textSecondary: "#8899B4",
-  textMuted: "#556680",
-  chartColors: ["#1E90FF", "#4CAF50", "#FF9800", "#00B4D8", "#7C4DFF", "#E91E63", "#FF5722"],
+  background: "#090e1a",
+  bg1: "#0d1526",
+  bg2: "#111d35",
+  bg3: "#162240",
+  border: "rgba(255,255,255,0.06)",
+  borderHi: "rgba(255,255,255,0.12)",
+  textPrimary: "#f0f4ff",
+  textSecondary: "#7d8fb3",
+  textTertiary: "#4a5a7a",
+  accent: "#3b7dff",
+  accentDim: "rgba(59,125,255,0.12)",
+  accentGlow: "rgba(59,125,255,0.08)",
+  green: "#1fc87e",
+  greenDim: "rgba(31,200,126,0.1)",
+  amber: "#f59e0b",
+  amberDim: "rgba(245,158,11,0.1)",
+  red: "#f04444",
+  redDim: "rgba(240,68,68,0.1)",
+  chartColors: [
+    "#3b7dff",
+    "#1fc87e",
+    "#f59e0b",
+    "#f04444",
+    "#7c4dff",
+    "#e91e63",
+    "#ff5722",
+  ],
+} as const;
+
+export const fonts = {
+  mono: Platform.select({
+    ios: "Menlo",
+    android: "monospace",
+    default: "monospace",
+  }),
+  sans: Platform.select({
+    ios: "System",
+    android: "sans-serif",
+    default: "System",
+  }),
 } as const;
 
 export const spacing = {
@@ -29,23 +56,25 @@ export const borderRadius = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 24,
+  xl: 20,
+  xxl: 24,
   full: 9999,
 } as const;
 
 export const fontSize = {
-  xs: 12,
-  sm: 14,
-  md: 16,
-  lg: 18,
-  xl: 22,
+  xxs: 9,
+  xs: 11,
+  sm: 12,
+  md: 14,
+  lg: 16,
+  xl: 20,
   xxl: 28,
   xxxl: 36,
-  hero: 48,
+  hero: 42,
 } as const;
 
 export const providerColors: Record<string, string> = {
-  deepseek: "#1E90FF",
+  deepseek: "#1fc87e",
   openai: "#10A37F",
   anthropic: "#D97757",
   gemini: "#4285F4",
@@ -58,12 +87,5 @@ export const shadows = {
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
-  },
-  glow: {
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
   },
 } as const;

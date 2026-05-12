@@ -2,15 +2,15 @@ import React from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { BarChart } from "react-native-chart-kit";
 import { DailyUsage } from "../types";
-import { colors, spacing, borderRadius, fontSize, shadows } from "../theme";
+import { colors, spacing, borderRadius, fontSize, fonts } from "../theme";
 
 interface Props {
   dailyUsage: DailyUsage[];
 }
 
-const CHART_HEIGHT = 220;
+const CHART_HEIGHT = 200;
 const screenWidth = Dimensions.get("window").width;
-const CHART_WIDTH = screenWidth - spacing.md * 2;
+const CHART_WIDTH = screenWidth - spacing.lg * 2;
 
 function formatDate(isoDate: string): string {
   try {
@@ -32,7 +32,7 @@ export default function UsageChart({ dailyUsage }: Props) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>{"暂无数据"}</Text>
+          <Text style={styles.emptyText}>No data yet</Text>
         </View>
       </View>
     );
@@ -52,35 +52,31 @@ export default function UsageChart({ dailyUsage }: Props) {
   };
 
   const chartConfig = {
-    backgroundColor: colors.surface,
-    backgroundGradientFrom: colors.surface,
-    backgroundGradientTo: colors.surface,
+    backgroundColor: colors.bg1,
+    backgroundGradientFrom: colors.bg1,
+    backgroundGradientTo: colors.bg1,
     decimalPlaces: 4,
-    formatYLabel: (value: string) => parseFloat(value).toFixed(4),
+    formatYLabel: (value: string) => parseFloat(value).toFixed(2),
     formatTopBarValue: (value: number) => value.toFixed(4),
-    color: (opacity = 1) => {
-      const hex = colors.primary.replace("#", "");
-      const r = parseInt(hex.substring(0, 2), 16);
-      const g = parseInt(hex.substring(2, 4), 16);
-      const b = parseInt(hex.substring(4, 6), 16);
-      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    },
+    color: (opacity = 1) => `rgba(59, 125, 255, ${opacity})`,
     labelColor: () => colors.textSecondary,
     barPercentage: 0.6,
     propsForBackgroundLines: {
-      strokeWidth: 0,
+      strokeWidth: 1,
+      stroke: "rgba(255,255,255,0.04)",
     },
     propsForLabels: {
-      fontSize: 11,
+      fontSize: 10,
+      fontFamily: fonts.mono,
       fontWeight: "500",
     },
   };
 
   return (
-    <View style={[styles.container, shadows.glow]}>
+    <View style={styles.container}>
       {!hasAnyCost && (
         <View style={styles.overlayEmpty}>
-          <Text style={styles.emptyText}>{"暂无数据"}</Text>
+          <Text style={styles.emptyText}>No data yet</Text>
         </View>
       )}
       <BarChart
@@ -91,7 +87,7 @@ export default function UsageChart({ dailyUsage }: Props) {
         style={styles.chart}
         yAxisLabel={"\u00A5"}
         yAxisSuffix=""
-        withInnerLines={false}
+        withInnerLines={true}
         showValuesOnTopOfBars={true}
         fromZero
         segments={4}
@@ -102,17 +98,20 @@ export default function UsageChart({ dailyUsage }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
+    backgroundColor: colors.bg1,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingVertical: spacing.md,
+    borderColor: colors.border,
+    paddingVertical: spacing.md + 4,
     paddingHorizontal: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.md + 4,
+    marginHorizontal: spacing.lg - 4,
+    height: CHART_HEIGHT + spacing.md * 2 + 8,
     position: "relative",
+    justifyContent: "center",
   },
   chart: {
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
   },
   emptyContainer: {
     height: CHART_HEIGHT,
@@ -130,8 +129,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   emptyText: {
-    color: colors.textMuted,
-    fontSize: fontSize.md,
-    fontWeight: "500",
+    fontFamily: fonts.mono,
+    fontSize: fontSize.sm,
+    color: colors.textTertiary,
+    letterSpacing: 0.5,
   },
 });

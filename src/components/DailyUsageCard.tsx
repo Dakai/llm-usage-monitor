@@ -1,10 +1,10 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { DailyUsage, ProviderType } from "../types";
-import { colors, spacing, borderRadius, fontSize } from "../theme";
+import { colors, spacing, borderRadius, fontSize, fonts } from "../theme";
 
 const PROVIDER_DOT_COLORS: Record<ProviderType, string> = {
-  deepseek: colors.primary,
+  deepseek: colors.green,
   openai: "#10A37F",
   anthropic: "#D97757",
   gemini: "#4285F4",
@@ -13,6 +13,7 @@ const PROVIDER_DOT_COLORS: Record<ProviderType, string> = {
 interface Props {
   usage: DailyUsage;
   provider?: ProviderType;
+  maxCost: number;
 }
 
 function formatDate(isoDate: string): string {
@@ -34,101 +35,96 @@ function formatCost(cost: number): string {
   return `\u00A5${cost.toFixed(4)}`;
 }
 
-function formatTokens(count: number): string {
+function formatTokensCompact(count: number): string {
   const rounded = Math.round(count);
   if (rounded >= 1_000_000) {
-    return `~${(rounded / 1_000_000).toFixed(1)}M tokens`;
+    return `~${(rounded / 1_000_000).toFixed(1)}M tk`;
   }
   if (rounded >= 1_000) {
-    return `~${Math.round(rounded / 1000)}K tokens`;
+    return `~${Math.round(rounded / 1000)}K tk`;
   }
-  return `~${rounded} tokens`;
+  return `~${rounded} tk`;
 }
 
-export default function DailyUsageCard({ usage, provider }: Props) {
-  const isZeroCost = usage.cost === 0;
+export default function DailyUsageCard({ usage, provider, maxCost }: Props) {
+  const barPct = maxCost > 0 ? (usage.cost / maxCost) * 100 : 0;
+  const dotColor = provider ? PROVIDER_DOT_COLORS[provider] : colors.textTertiary;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.leftSection}>
-        {provider && (
-          <View
-            style={[
-              styles.providerDot,
-              { backgroundColor: PROVIDER_DOT_COLORS[provider] },
-            ]}
-          />
-        )}
-        <Text style={styles.dateText}>{formatDate(usage.date)}</Text>
+    <View style={styles.row}>
+      {/* Provider dot */}
+      <View style={[styles.dot, { backgroundColor: dotColor }]} />
+
+      {/* Date */}
+      <Text style={styles.date}>{formatDate(usage.date)}</Text>
+
+      {/* Bar */}
+      <View style={styles.barWrap}>
+        <View style={[styles.bar, { width: `${Math.max(barPct, 0.5)}%` }]} />
       </View>
-      <Text
-        style={[
-          styles.costText,
-          isZeroCost && styles.costMuted,
-        ]}
-      >
-        {formatCost(usage.cost)}
-      </Text>
-      <Text
-        style={[
-          styles.tokensText,
-          isZeroCost && styles.tokensMuted,
-        ]}
-      >
-        {formatTokens(usage.estimatedTokens)}
+
+      {/* Cost */}
+      <Text style={styles.cost}>{formatCost(usage.cost)}</Text>
+
+      {/* Tokens */}
+      <Text style={styles.tokens}>
+        {formatTokensCompact(usage.estimatedTokens)}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.sm,
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 4,
+    backgroundColor: colors.bg1,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingVertical: spacing.sm + 2,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md - 2,
     paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs + 2,
   },
-  leftSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: 60,
-  },
-  providerDot: {
+  dot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: spacing.xs,
+    flexShrink: 0,
   },
-  dateText: {
-    color: colors.textSecondary,
+  date: {
+    fontFamily: fonts.mono,
     fontSize: fontSize.sm,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    minWidth: 36,
   },
-  costText: {
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontWeight: "600",
+  barWrap: {
     flex: 1,
-    textAlign: "center",
-    fontVariant: ["tabular-nums"],
+    height: 4,
+    backgroundColor: colors.bg3,
+    borderRadius: 2,
+    overflow: "hidden",
   },
-  costMuted: {
-    color: colors.textMuted,
+  bar: {
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 2,
   },
-  tokensText: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
+  cost: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.md - 1,
+    fontWeight: "500",
+    color: colors.textPrimary,
+    minWidth: 48,
     textAlign: "right",
-    flex: 1,
-    fontVariant: ["tabular-nums"],
   },
-  tokensMuted: {
-    color: colors.textMuted,
+  tokens: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    color: colors.textTertiary,
+    minWidth: 56,
+    textAlign: "right",
   },
 });

@@ -14,38 +14,30 @@ import { useHistory } from "../hooks/useHistory";
 import UsageChart from "../components/UsageChart";
 import DailyUsageCard from "../components/DailyUsageCard";
 import { DailyUsage, ProviderType } from "../types";
-import { colors, spacing, borderRadius, fontSize, shadows } from "../theme";
+import { colors, spacing, borderRadius, fontSize, fonts } from "../theme";
 
-// ── Provider config ───────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────
 
 type FilterValue = "all" | ProviderType;
 
 interface ProviderFilter {
   key: FilterValue;
   label: string;
-  color: string;
 }
 
-const PROVIDER_BRAND_COLORS: Record<ProviderType, string> = {
-  deepseek: colors.primary,
-  openai: "#10A37F",
-  anthropic: "#D97757",
-  gemini: "#4285F4",
-};
-
 const FILTERS: ProviderFilter[] = [
-  { key: "all", label: "全部", color: colors.primary },
-  { key: "deepseek", label: "DeepSeek", color: PROVIDER_BRAND_COLORS.deepseek },
-  { key: "openai", label: "OpenAI", color: PROVIDER_BRAND_COLORS.openai },
-  { key: "anthropic", label: "Anthropic", color: PROVIDER_BRAND_COLORS.anthropic },
-  { key: "gemini", label: "Gemini", color: PROVIDER_BRAND_COLORS.gemini },
+  { key: "all", label: "All" },
+  { key: "deepseek", label: "DeepSeek" },
+  { key: "openai", label: "OpenAI" },
+  { key: "anthropic", label: "Anthropic" },
+  { key: "gemini", label: "Gemini" },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────
 
 function getCurrentWeekDates(): string[] {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon, ...
+  const day = now.getDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
   const dates: string[] = [];
   for (let i = 0; i < 7; i++) {
@@ -67,7 +59,7 @@ function getCurrentMonthPrefix(): string {
 }
 
 function formatCost(cost: number): string {
-  return `\u00A5${cost.toFixed(4)}`;
+  return `\u00A5${cost.toFixed(2)}`;
 }
 
 function aggregateByDate(usage: DailyUsage[]): DailyUsage[] {
@@ -86,79 +78,8 @@ function aggregateByDate(usage: DailyUsage[]): DailyUsage[] {
   return Array.from(map.values());
 }
 
-// ── Filter Pill ──────────────────────────────────────────────────
-
-interface PillProps {
-  filter: ProviderFilter;
-  isActive: boolean;
-  onPress: () => void;
-}
-
-function FilterPill({ filter, isActive, onPress }: PillProps) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={onPress}
-      style={[
-        styles.pill,
-        { borderColor: isActive ? filter.color : colors.surfaceBorder },
-        isActive && { backgroundColor: filter.color },
-      ]}
-    >
-      <Text
-        style={[
-          styles.pillDot,
-          { color: isActive ? colors.text : filter.color },
-        ]}
-      >
-        {"●"}
-      </Text>
-      <Text
-        style={[
-          styles.pillLabel,
-          { color: isActive ? colors.text : colors.textSecondary },
-        ]}
-      >
-        {filter.label}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-// ── List Item ────────────────────────────────────────────────────
-
 function keyExtractor(item: DailyUsage) {
   return `${item.date}-${item.provider}`;
-}
-
-interface RenderItemProps {
-  item: DailyUsage;
-  showProviderDot: boolean;
-}
-
-function ListItem({ item, showProviderDot }: RenderItemProps) {
-  return (
-    <DailyUsageCard
-      usage={item}
-      provider={showProviderDot ? item.provider : undefined}
-    />
-  );
-}
-
-// ── Empty State ──────────────────────────────────────────────────
-
-interface EmptyProps {
-  isAllFilter: boolean;
-}
-
-function ListEmptyComponent({ isAllFilter }: EmptyProps) {
-  return (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>
-        {isAllFilter ? "暂无历史数据" : "该提供商暂无历史数据"}
-      </Text>
-    </View>
-  );
 }
 
 // ── Screen ───────────────────────────────────────────────────────
@@ -166,7 +87,8 @@ function ListEmptyComponent({ isAllFilter }: EmptyProps) {
 export default function HistoryScreen() {
   const route = useRoute<any>();
   const initialFilter: FilterValue = route.params?.provider ?? "all";
-  const [selectedFilter, setSelectedFilter] = useState<FilterValue>(initialFilter);
+  const [selectedFilter, setSelectedFilter] =
+    useState<FilterValue>(initialFilter);
 
   const { dailyUsage, isLoading, error, reload } = useHistory();
   const [refreshing, setRefreshing] = useState(false);
@@ -194,7 +116,7 @@ export default function HistoryScreen() {
       filteredUsage
         .filter((d) => weekDates.includes(d.date))
         .reduce((sum, d) => sum + d.cost, 0),
-    [filteredUsage, weekDates],
+    [filteredUsage, weekDates]
   );
 
   const monthCost = useMemo(
@@ -202,20 +124,28 @@ export default function HistoryScreen() {
       filteredUsage
         .filter((d) => d.date.startsWith(monthPrefix))
         .reduce((sum, d) => sum + d.cost, 0),
-    [filteredUsage, monthPrefix],
+    [filteredUsage, monthPrefix]
   );
 
   const uniqueDays = useMemo(
     () => new Set(filteredUsage.map((d) => d.date)).size,
-    [filteredUsage],
+    [filteredUsage]
   );
 
   const avgDailyCost = useMemo(
-    () => (uniqueDays > 0 ? filteredUsage.reduce((sum, d) => sum + d.cost, 0) / uniqueDays : 0),
-    [filteredUsage, uniqueDays],
+    () =>
+      uniqueDays > 0
+        ? filteredUsage.reduce((sum, d) => sum + d.cost, 0) / uniqueDays
+        : 0,
+    [filteredUsage, uniqueDays]
   );
 
-  // Chart data: when "all" selected, aggregate by date; otherwise use as-is
+  const maxCost = useMemo(
+    () => filteredUsage.reduce((max, d) => Math.max(max, d.cost), 0),
+    [filteredUsage]
+  );
+
+  // Chart data
   const chartData = useMemo(() => {
     const raw = filteredUsage.slice(-7);
     if (selectedFilter === "all") {
@@ -230,79 +160,104 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{"用量历史"}</Text>
-        <View style={styles.accentUnderline} />
-      </View>
-
       <FlatList
         data={filteredUsage}
         keyExtractor={keyExtractor}
         renderItem={({ item }) => (
-          <ListItem item={item} showProviderDot={showProviderDot} />
+          <DailyUsageCard
+            usage={item}
+            provider={showProviderDot ? item.provider : undefined}
+            maxCost={maxCost}
+          />
         )}
         ListHeaderComponent={
           <View>
-            {/* Provider filter pills */}
+            {/* ── Header ── */}
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.pageTitle}>History</Text>
+                <Text style={styles.pageSubtitle}>Usage breakdown</Text>
+              </View>
+            </View>
+
+            {/* ── Filter Pills ── */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={styles.pillsContainer}
-              contentContainerStyle={styles.pillsContent}
+              style={styles.filterScroll}
+              contentContainerStyle={styles.filterContent}
             >
-              {FILTERS.map((f) => (
-                <FilterPill
-                  key={f.key}
-                  filter={f}
-                  isActive={selectedFilter === f.key}
-                  onPress={() => setSelectedFilter(f.key)}
-                />
-              ))}
+              {FILTERS.map((f) => {
+                const isActive = selectedFilter === f.key;
+                return (
+                  <TouchableOpacity
+                    key={f.key}
+                    style={[
+                      styles.filterPill,
+                      isActive && styles.filterPillActive,
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => setSelectedFilter(f.key)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterPillText,
+                        isActive && styles.filterPillTextActive,
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
-            {/* Summary stats row */}
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>{"本周"}</Text>
-                <Text style={styles.summaryValue}>
+            {/* ── Stats Strip ── */}
+            <View style={styles.statsStrip}>
+              <View style={styles.statCell}>
+                <Text style={styles.statLabel}>This Week</Text>
+                <Text style={styles.statValue}>
                   {formatCost(weekCost)}
                 </Text>
               </View>
-              <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>{"本月"}</Text>
-                <Text style={styles.summaryValue}>
+              <View style={styles.statDivider} />
+              <View style={styles.statCell}>
+                <Text style={styles.statLabel}>This Month</Text>
+                <Text style={styles.statValue}>
                   {formatCost(monthCost)}
                 </Text>
               </View>
-              <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>{"日均"}</Text>
-                <Text style={styles.summaryValue}>
+              <View style={styles.statDivider} />
+              <View style={styles.statCell}>
+                <Text style={styles.statLabel}>Daily Avg</Text>
+                <Text style={styles.statValue}>
                   {formatCost(avgDailyCost)}
                 </Text>
               </View>
             </View>
 
-            {/* Chart */}
+            {/* ── Chart ── */}
             <UsageChart dailyUsage={chartData} />
 
-            {/* Error banner */}
+            {/* ── Error Banner ── */}
             {error ? (
               <View style={styles.errorBanner}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
-            {/* Section header */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{"按日明细"}</Text>
-              <View style={styles.sectionAccent} />
-            </View>
+            {/* ── Section Label ── */}
+            <Text style={styles.sectionLabel}>DAILY BREAKDOWN</Text>
           </View>
         }
         ListEmptyComponent={
-          <ListEmptyComponent isAllFilter={selectedFilter === "all"} />
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {selectedFilter === "all"
+                ? "No history data yet"
+                : "No data for this provider"}
+            </Text>
+          </View>
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -310,9 +265,9 @@ export default function HistoryScreen() {
           <RefreshControl
             refreshing={refreshing || isLoading}
             onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-            progressBackgroundColor={colors.surface}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.bg1}
           />
         }
       />
@@ -327,128 +282,137 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  title: {
-    color: colors.text,
-    fontSize: fontSize.xxl,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  accentUnderline: {
-    marginTop: spacing.sm,
-    width: 48,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.accent,
-  },
   listContent: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.xl - 4,
     paddingBottom: spacing.xxl,
   },
 
-  // ── Filter pills ────────────────────────────────────────────────
-  pillsContainer: {
-    marginBottom: spacing.md,
+  // ── Header ──────────────────────────────────────────────────
+
+  header: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl - 4,
   },
-  pillsContent: {
-    gap: spacing.sm,
+  pageTitle: {
+    fontSize: fontSize.xxl,
+    fontWeight: "700",
+    letterSpacing: -0.8,
+    color: colors.textPrimary,
+    fontFamily: fonts.sans,
+  },
+  pageSubtitle: {
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    fontFamily: fonts.mono,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginTop: 2,
+  },
+
+  // ── Filter Pills ────────────────────────────────────────────
+
+  filterScroll: {
+    marginBottom: spacing.xl - 4,
+  },
+  filterContent: {
+    gap: spacing.xs + 2,
     paddingRight: spacing.md,
   },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+  filterPill: {
+    flexShrink: 0,
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.md - 2,
     borderRadius: borderRadius.full,
     borderWidth: 1,
-    backgroundColor: colors.surfaceLight,
+    borderColor: colors.border,
+    backgroundColor: "transparent",
   },
-  pillDot: {
-    fontSize: 10,
-    marginRight: spacing.xs,
-  },
-  pillLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-  },
-
-  // ── Summary stats row ───────────────────────────────────────────
-  summaryRow: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.md,
-  },
-  summaryItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: colors.surfaceBorder,
-    marginVertical: spacing.xs,
-  },
-  summaryLabel: {
-    color: colors.textMuted,
-    fontSize: fontSize.xs,
-    fontWeight: "600",
-    marginBottom: spacing.xs,
-  },
-  summaryValue: {
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-
-  // ── Section header ──────────────────────────────────────────────
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: fontSize.lg,
-    fontWeight: "700",
-  },
-  sectionAccent: {
-    marginLeft: spacing.sm,
-    width: 18,
-    height: 2,
-    borderRadius: 1,
+  filterPillActive: {
     backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  filterPillText: {
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+    color: colors.textSecondary,
+  },
+  filterPillTextActive: {
+    color: "#ffffff",
   },
 
-  // ── Error banner ────────────────────────────────────────────────
+  // ── Stats Strip ─────────────────────────────────────────────
+
+  statsStrip: {
+    flexDirection: "row",
+    backgroundColor: colors.bg1,
+    borderRadius: spacing.md - 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    marginBottom: spacing.md + 4,
+  },
+  statCell: {
+    flex: 1,
+    paddingVertical: spacing.md - 2,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+  },
+  statLabel: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    color: colors.textTertiary,
+    marginBottom: spacing.xs + 1,
+  },
+  statValue: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.md,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
+
+  // ── Section Label ───────────────────────────────────────────
+
+  sectionLabel: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    color: colors.textTertiary,
+    marginBottom: spacing.sm + 2,
+  },
+
+  // ── Error Banner ────────────────────────────────────────────
+
   errorBanner: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg1,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.danger,
+    borderColor: colors.red + "40",
     padding: spacing.md,
     marginBottom: spacing.md,
   },
   errorText: {
-    color: colors.danger,
+    color: colors.red,
     fontSize: fontSize.sm,
+    fontFamily: fonts.mono,
   },
 
-  // ── Empty state ─────────────────────────────────────────────────
+  // ── Empty State ─────────────────────────────────────────────
+
   emptyContainer: {
     paddingVertical: spacing.xxl * 2,
     alignItems: "center",
   },
   emptyText: {
-    color: colors.textMuted,
-    fontSize: fontSize.md,
-    fontWeight: "500",
+    fontFamily: fonts.mono,
+    fontSize: fontSize.sm,
+    color: colors.textTertiary,
+    letterSpacing: 0.5,
   },
 });

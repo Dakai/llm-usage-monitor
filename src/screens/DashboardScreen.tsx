@@ -7,9 +7,6 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
-  LayoutAnimation,
-  Platform,
-  UIManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -22,23 +19,14 @@ import {
   spacing,
   borderRadius,
   fontSize,
-  shadows,
+  fonts,
   providerColors,
 } from "../theme";
 import {
   ProviderType,
   ProviderBalanceState,
-  DailyUsage,
   BalanceInfo,
 } from "../types";
-
-// Enable LayoutAnimation on Android
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 // ── Constants ────────────────────────────────────────────────────
 
@@ -51,23 +39,12 @@ const ALL_PROVIDERS: ProviderType[] = [
 
 const PROVIDER_META: Record<
   ProviderType,
-  { name: string; color: string; label: string }
+  { name: string; label: string }
 > = {
-  deepseek: { name: "DeepSeek", color: providerColors.deepseek, label: "DS" },
-  openai: { name: "OpenAI", color: providerColors.openai, label: "O" },
-  anthropic: {
-    name: "Anthropic",
-    color: providerColors.anthropic,
-    label: "A",
-  },
-  gemini: { name: "Gemini", color: providerColors.gemini, label: "G" },
-};
-
-const STATUS_DOT_COLORS: Record<string, string> = {
-  success: colors.success,
-  warning: colors.warning,
-  danger: colors.danger,
-  none: colors.textMuted,
+  deepseek: { name: "DeepSeek", label: "DS" },
+  openai: { name: "OpenAI", label: "OA" },
+  anthropic: { name: "Anthropic", label: "AN" },
+  gemini: { name: "Gemini", label: "GM" },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -76,22 +53,10 @@ function formatCost(cost: number): string {
   return `\u00A5${cost.toFixed(4)}`;
 }
 
-function formatCostCompact(cost: number): string {
-  if (cost >= 10000) return `\u00A5${(cost / 10000).toFixed(2)}万`;
-  if (cost >= 1) return `\u00A5${cost.toFixed(2)}`;
-  if (cost >= 0.01) return `\u00A5${cost.toFixed(4)}`;
-  return `\u00A5${cost.toFixed(6)}`;
-}
-
-function formatTokens(count: number): string {
-  const rounded = Math.round(count);
-  if (rounded >= 1_000_000) {
-    return `~${(rounded / 1_000_000).toFixed(1)}M tokens`;
-  }
-  if (rounded >= 1_000) {
-    return `~${Math.round(rounded / 1000)}K tokens`;
-  }
-  return `~${rounded} tokens`;
+function formatBalanceCompact(balance: number): string {
+  if (balance >= 10000) return `\u00A5${(balance / 10000).toFixed(2)}万`;
+  if (balance >= 1) return `\u00A5${balance.toFixed(2)}`;
+  return `\u00A5${balance.toFixed(4)}`;
 }
 
 function getTodayDateString(): string {
@@ -102,42 +67,16 @@ function getTodayDateString(): string {
   return `${y}-${m}-${day}`;
 }
 
-function getBalanceStatus(totalBalance: number | null):
-  | "success"
-  | "warning"
-  | "danger"
-  | "none" {
-  if (totalBalance === null || totalBalance === undefined) return "none";
-  if (totalBalance > 5) return "success";
-  if (totalBalance >= 1) return "warning";
-  return "danger";
-}
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(Math.round(n));
-}
-
 // ── DashboardScreen ──────────────────────────────────────────────
 
 export default function DashboardScreen() {
   const navigation = useNavigation<any>();
-  const { states, refreshAll, refreshOne, isAnyLoading } = useBalance();
+  const { states, refreshAll, isAnyLoading } = useBalance();
   const {
     dailyUsage,
     isLoading: historyLoading,
     error: historyError,
     reload: reloadHistory,
-    monthlyCost,
   } = useHistory();
   const {
     settings,
@@ -146,10 +85,8 @@ export default function DashboardScreen() {
   } = useSettings();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedProvider, setExpandedProvider] =
-    useState<ProviderType | null>(null);
 
-  // ── Computed values ──────────────────────────────────────────
+  // ── Derived data ──────────────────────────────────────────────
 
   const todayStr = useMemo(() => getTodayDateString(), []);
 
@@ -165,44 +102,65 @@ export default function DashboardScreen() {
     [settings]
   );
 
-  // Total balance across all providers
+  // Total balance across all configured providers
   const totalBalance = useMemo(() => {
     let sum = 0;
     for (const s of states) {
-      if (s.balance) {
+      if (hasApiKey(s.provider) && s.balance) {
         for (const info of s.balance.balanceInfos) {
           sum += info.totalBalance;
         }
       }
     }
     return sum;
-  }, [states]);
+  }, [states, hasApiKey]);
 
-  // Today's total cost aggregated from dailyUsage
+  // Today's total cost
   const todayTotalCost = useMemo(() => {
     return dailyUsage
       .filter((d) => d.date === todayStr)
       .reduce((sum, d) => sum + d.cost, 0);
   }, [dailyUsage, todayStr]);
 
-  // Provider-specific today data
-  const providerTodayMap = useMemo(() => {
-    const map = new Map<
-      ProviderType,
-      { cost: number; tokens: number }
-    >();
-    for (const d of dailyUsage) {
-      if (d.date === todayStr) {
-        const prev = map.get(d.provider) ?? { cost: 0, tokens: 0 };
-        prev.cost += d.cost;
-        prev.tokens += d.estimatedTokens;
-        map.set(d.provider, prev);
-      }
+  // This week's cost
+  const weekCost = useMemo(() => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    return dailyUsage
+      .filter((d) => d.date >= mondayStr)
+      .reduce((sum, d) => sum + d.cost, 0);
+  }, [dailyUsage]);
+
+  // Daily average
+  const uniqueDays = useMemo(
+    () => new Set(dailyUsage.map((d) => d.date)).size,
+    [dailyUsage]
+  );
+  const avgDailyCost = useMemo(
+    () =>
+      uniqueDays > 0
+        ? dailyUsage.reduce((sum, d) => sum + d.cost, 0) / uniqueDays
+        : 0,
+    [dailyUsage, uniqueDays]
+  );
+
+  // Provider-specific balance map
+  const providerBalanceMap = useMemo(() => {
+    const map = new Map<ProviderType, BalanceInfo | null>();
+    for (const s of states) {
+      map.set(
+        s.provider,
+        s.balance?.balanceInfos?.[0] ?? null
+      );
     }
     return map;
-  }, [dailyUsage, todayStr]);
+  }, [states]);
 
-  // ── Handlers ─────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────
 
   const refreshAllData = useCallback(async () => {
     await refreshAll();
@@ -218,10 +176,16 @@ export default function DashboardScreen() {
     }
   }, [refreshAllData]);
 
-  const toggleExpand = useCallback((provider: ProviderType) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedProvider((prev) => (prev === provider ? null : provider));
-  }, []);
+  const handleProviderTap = useCallback(
+    (provider: ProviderType) => {
+      if (hasApiKey(provider)) {
+        navigation.navigate("History", { provider });
+      } else {
+        navigation.navigate("Settings");
+      }
+    },
+    [hasApiKey, navigation]
+  );
 
   // Re-check settings and refresh when tab gains focus
   useFocusEffect(
@@ -236,290 +200,20 @@ export default function DashboardScreen() {
 
   const isRefreshing = refreshing || isAnyLoading || historyLoading;
 
-  // ── Sub-renderers ────────────────────────────────────────────
-
-  const renderSummaryStrip = () => (
-    <View style={styles.summaryStrip}>
-      <View style={styles.summaryItem}>
-        <Text style={styles.summaryLabel}>总余额</Text>
-        <Text style={styles.summaryValue}>
-          {isAnyLoading && totalBalance === 0 ? (
-            <ActivityIndicator color={colors.primary} size="small" />
-          ) : (
-            formatCostCompact(totalBalance)
-          )}
-        </Text>
-      </View>
-      <View style={styles.summaryDivider} />
-      <View style={styles.summaryItem}>
-        <Text style={styles.summaryLabel}>今日费用</Text>
-        <Text style={styles.summaryValueCost}>
-          {formatCost(todayTotalCost)}
-        </Text>
-      </View>
-    </View>
-  );
-
-  const renderStatusDot = (
-    status: "success" | "warning" | "danger" | "none"
-  ) => (
-    <View
-      style={[
-        styles.statusDot,
-        { backgroundColor: STATUS_DOT_COLORS[status] },
-      ]}
-    />
-  );
-
-  const renderRateLimitBar = (
-    label: string,
-    used: number,
-    limit: number
-  ) => {
-    const pct = limit > 0 ? Math.min(used / limit, 1) : 0;
-    const barColor =
-      pct > 0.8
-        ? colors.danger
-        : pct > 0.5
-          ? colors.warning
-          : colors.success;
-    return (
-      <View key={label} style={styles.rateLimitRow}>
-        <Text style={styles.rateLimitLabel}>{label}</Text>
-        <View style={styles.rateLimitBarBg}>
-          <View
-            style={[
-              styles.rateLimitBarFill,
-              {
-                width: `${Math.round(pct * 100)}%`,
-                backgroundColor: barColor,
-              },
-            ]}
-          />
-        </View>
-        <Text style={styles.rateLimitText}>
-          {formatNumber(used)}/{formatNumber(limit)}
-        </Text>
-      </View>
-    );
-  };
-
-  const renderExpandedContent = (state: ProviderBalanceState) => {
-    const info: BalanceInfo | undefined =
-      state.balance?.balanceInfos?.[0];
-    const todayData = providerTodayMap.get(state.provider);
-
-    return (
-      <View style={styles.expandedContent}>
-        {/* Separator */}
-        <View style={styles.expandedSeparator} />
-
-        {/* Balance Breakdown */}
-        {info && (
-          <>
-            <Text style={styles.expandedSectionLabel}>余额明细</Text>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>总余额</Text>
-              <Text style={styles.breakdownValue}>
-                {formatCost(info.totalBalance)}
-              </Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>赠送余额</Text>
-              <Text style={styles.breakdownValue}>
-                {formatCost(info.grantedBalance)}
-              </Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>充值余额</Text>
-              <Text style={styles.breakdownValue}>
-                {formatCost(info.toppedUpBalance)}
-              </Text>
-            </View>
-          </>
-        )}
-
-        {/* Rate Limits */}
-        {state.rateLimits && (
-          <>
-            <View style={styles.expandedSectionSpacer} />
-            <Text style={styles.expandedSectionLabel}>速率限制</Text>
-            {renderRateLimitBar(
-              "RPM",
-              state.rateLimits.rpm.used,
-              state.rateLimits.rpm.limit
-            )}
-            {renderRateLimitBar(
-              "TPM",
-              state.rateLimits.tpm.used,
-              state.rateLimits.tpm.limit
-            )}
-          </>
-        )}
-
-        {/* Token Estimates & Last Refreshed */}
-        <View style={styles.expandedSectionSpacer} />
-        <View style={styles.expandedMetaRow}>
-          <Text style={styles.expandedMetaLabel}>今日估算</Text>
-          <Text style={styles.expandedMetaValue}>
-            {todayData && todayData.tokens > 0
-              ? formatTokens(todayData.tokens)
-              : "暂无数据"}
-          </Text>
-        </View>
-
-        {state.lastRefreshed && (
-          <View style={styles.expandedMetaRow}>
-            <Text style={styles.expandedMetaLabel}>最后刷新</Text>
-            <Text style={styles.expandedMetaValue}>
-              {formatTime(state.lastRefreshed)}
-            </Text>
-          </View>
-        )}
-
-        {/* Detail Link */}
-        <TouchableOpacity
-          style={styles.detailLink}
-          activeOpacity={0.7}
-          onPress={() =>
-            navigation.navigate("History")
-          }
-        >
-          <Text style={styles.detailLinkText}>查看详情 →</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderProviderCard = (state: ProviderBalanceState) => {
-    const meta = PROVIDER_META[state.provider];
-    const isExpanded = expandedProvider === state.provider;
-    const info: BalanceInfo | undefined =
-      state.balance?.balanceInfos?.[0];
-    const totalBal = info?.totalBalance ?? null;
-    const status = getBalanceStatus(totalBal);
-    const todayData = providerTodayMap.get(state.provider);
-
-    return (
-      <TouchableOpacity
-        key={state.provider}
-        style={[
-          styles.providerCard,
-          isExpanded && styles.providerCardExpanded,
-        ]}
-        activeOpacity={0.85}
-        onPress={() => toggleExpand(state.provider)}
-      >
-        {/* Collapsed Content */}
-        <View style={styles.providerCardRow}>
-          {/* Icon */}
-          <View
-            style={[
-              styles.providerIcon,
-              { backgroundColor: meta.color + "20" },
-            ]}
-          >
-            <Text style={[styles.providerIconText, { color: meta.color }]}>
-              {meta.label}
-            </Text>
-          </View>
-
-          {/* Name + Status */}
-          <View style={styles.providerInfo}>
-            <View style={styles.providerNameRow}>
-              <Text style={styles.providerName}>{meta.name}</Text>
-              {renderStatusDot(status)}
-            </View>
-            {todayData !== undefined && todayData.cost > 0 && (
-              <Text style={styles.providerTodayCost}>
-                今日: {formatCostCompact(todayData.cost)}
-              </Text>
-            )}
-          </View>
-
-          {/* Balance + Chevron */}
-          <View style={styles.providerBalanceSection}>
-            {state.isLoading && totalBal === null ? (
-              <ActivityIndicator
-                color={meta.color}
-                size="small"
-                style={styles.providerLoadingSpinner}
-              />
-            ) : state.error ? (
-              <View style={styles.providerErrorBadge}>
-                <Text style={styles.providerErrorBadgeText}>ERR</Text>
-              </View>
-            ) : totalBal !== null ? (
-              <Text
-                style={[
-                  styles.providerBalanceHero,
-                  { color: meta.color },
-                ]}
-              >
-                {formatCostCompact(totalBal)}
-              </Text>
-            ) : (
-              <Text style={styles.providerBalanceNA}>---</Text>
-            )}
-            <Text style={styles.providerChevron}>
-              {isExpanded ? "▲" : "▼"}
-            </Text>
-          </View>
-        </View>
-
-        {/* Expanded Content */}
-        {isExpanded && renderExpandedContent(state)}
-      </TouchableOpacity>
-    );
-  };
-
-  const renderEmptyProviderCard = (provider: ProviderType) => {
-    const meta = PROVIDER_META[provider];
-
-    return (
-      <TouchableOpacity
-        key={provider}
-        style={styles.emptyProviderCard}
-        activeOpacity={0.7}
-        onPress={() => navigation.navigate("Settings")}
-      >
-        <View
-          style={[
-            styles.providerIcon,
-            { backgroundColor: meta.color + "10" },
-          ]}
-        >
-          <Text
-            style={[
-              styles.providerIconText,
-              { color: meta.color + "60" },
-            ]}
-          >
-            {meta.label}
-          </Text>
-        </View>
-        <View style={styles.emptyProviderInfo}>
-          <Text style={styles.emptyProviderName}>{meta.name}</Text>
-          <Text style={styles.emptyProviderAction}>点击配置</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  // ── Loading state (settings not loaded yet) ──────────────────
+  // ── Loading state ─────────────────────────────────────────────
 
   if (settingsLoading && !settings) {
     return (
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <StatusBar style="light" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={colors.accent} size="large" />
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Empty state: no API key at all ───────────────────────────
+  // ── Empty state: no API key at all ────────────────────────────
 
   if (!hasAnyApiKey) {
     return (
@@ -529,26 +223,23 @@ export default function DashboardScreen() {
           <View style={styles.emptyIconCircle}>
             <Text style={styles.emptyIconText}>API</Text>
           </View>
-          <Text style={styles.emptyStateTitle}>请先配置 API Key</Text>
+          <Text style={styles.emptyStateTitle}>Configure API Key</Text>
           <Text style={styles.emptyStateDesc}>
-            在设置中输入您的 API Key，{"\n"}即可开始监控余额使用情况。
+            Enter your API key in Settings{"\n"}to start monitoring usage.
           </Text>
           <TouchableOpacity
             style={styles.emptyStateButton}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Settings")}
           >
-            <Text style={styles.emptyStateButtonText}>前往设置</Text>
+            <Text style={styles.emptyStateButtonText}>Go to Settings</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Main Dashboard ───────────────────────────────────────────
-
-  const configuredProviders = states.filter((s) => hasApiKey(s.provider));
-  const unconfiguredProviders = states.filter((s) => !hasApiKey(s.provider));
+  // ── Main Dashboard ────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -561,27 +252,63 @@ export default function DashboardScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-            progressBackgroundColor={colors.surface}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.bg1}
           />
         }
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <View style={styles.header}>
-          <Text style={styles.title}>LLM Usage Monitor</Text>
-          <View style={styles.accentUnderline} />
+          <View>
+            <Text style={styles.pageTitle}>Overview</Text>
+            <Text style={styles.pageSubtitle}>LLM Usage Monitor</Text>
+          </View>
+          <View style={styles.headerBadge}>
+            <Text style={styles.headerBadgeText}>Live</Text>
+          </View>
         </View>
 
-        {/* Aggregated Summary Strip */}
-        {renderSummaryStrip()}
+        {/* ── Balance Card ── */}
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Total Balance</Text>
+          <View style={styles.balanceAmountRow}>
+            <Text style={styles.balanceCurrency}>{"\u00A5"}</Text>
+            <Text style={styles.balanceAmount}>
+              {isAnyLoading && totalBalance === 0
+                ? "..."
+                : totalBalance.toFixed(2)}
+            </Text>
+          </View>
+          <View style={styles.balanceMeta}>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Today</Text>
+              <Text
+                style={[
+                  styles.metaValue,
+                  todayTotalCost === 0 && styles.metaValueOk,
+                ]}
+              >
+                {formatCost(todayTotalCost)}
+              </Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>This Week</Text>
+              <Text style={styles.metaValue}>{formatCost(weekCost)}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Daily Avg</Text>
+              <Text style={styles.metaValue}>{formatCost(avgDailyCost)}</Text>
+            </View>
+          </View>
+        </View>
 
-        {/* Error Card (history errors only) */}
+        {/* ── Error Card ── */}
         {historyError && (
           <View style={styles.errorCard}>
             <View style={styles.errorHeaderRow}>
               <View style={styles.errorDot} />
-              <Text style={styles.errorTitle}>出错了</Text>
+              <Text style={styles.errorTitle}>Error</Text>
             </View>
             <Text style={styles.errorMessage}>{historyError}</Text>
             <TouchableOpacity
@@ -589,45 +316,96 @@ export default function DashboardScreen() {
               activeOpacity={0.8}
               onPress={refreshAllData}
             >
-              <Text style={styles.retryButtonText}>重试</Text>
+              <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Provider Cards */}
-        <View style={styles.providersSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>服务商余额</Text>
-            <View style={styles.sectionAccent} />
-          </View>
+        {/* ── Providers Section ── */}
+        <Text style={styles.sectionLabel}>PROVIDERS</Text>
+        <View style={styles.providerList}>
+          {states.map((state) => {
+            const meta = PROVIDER_META[state.provider];
+            const configured = hasApiKey(state.provider);
+            const info = providerBalanceMap.get(state.provider);
+            const totalBal = info?.totalBalance ?? null;
 
-          {/* Configured providers */}
-          {configuredProviders.map((s) => renderProviderCard(s))}
+            return (
+              <TouchableOpacity
+                key={state.provider}
+                style={[
+                  styles.providerCard,
+                  configured && styles.providerCardActive,
+                ]}
+                activeOpacity={0.7}
+                onPress={() => handleProviderTap(state.provider)}
+              >
+                {/* Icon */}
+                <View
+                  style={[
+                    styles.providerIcon,
+                    configured
+                      ? {
+                          backgroundColor: providerColors[state.provider] + "1A",
+                          borderColor: providerColors[state.provider] + "33",
+                        }
+                      : {
+                          backgroundColor: "rgba(255,255,255,0.05)",
+                          borderColor: colors.border,
+                        },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.providerIconText,
+                      {
+                        color: configured
+                          ? providerColors[state.provider]
+                          : colors.textTertiary,
+                      },
+                    ]}
+                  >
+                    {meta.label}
+                  </Text>
+                </View>
 
-          {/* Unconfigured providers */}
-          {unconfiguredProviders.length > 0 && (
-            <>
-              <Text style={styles.unconfiguredHint}>
-                以下服务商尚未配置 API Key
-              </Text>
-              {unconfiguredProviders.map((s) =>
-                renderEmptyProviderCard(s.provider)
-              )}
-            </>
-          )}
-        </View>
+                {/* Info */}
+                <View style={styles.providerInfo}>
+                  <Text style={styles.providerName}>{meta.name}</Text>
+                  <Text
+                    style={[
+                      styles.providerStatus,
+                      configured && styles.providerStatusConfigured,
+                    ]}
+                  >
+                    {configured
+                      ? "\u25CF Configured"
+                      : "No API key"}
+                  </Text>
+                </View>
 
-        {/* Monthly Total */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>本月累计</Text>
-          <View style={styles.sectionAccent} />
-        </View>
-
-        <View style={styles.monthlyCard}>
-          <Text style={styles.monthlyValue}>
-            {formatCost(monthlyCost)}
-          </Text>
-          <Text style={styles.monthlyLabel}>本月总费用</Text>
+                {/* Right side */}
+                <View style={styles.providerRight}>
+                  {state.isLoading && totalBal === null ? (
+                    <ActivityIndicator
+                      color={colors.accent}
+                      size="small"
+                    />
+                  ) : state.error ? (
+                    <Text style={styles.providerError}>ERR</Text>
+                  ) : configured && totalBal !== null ? (
+                    <Text style={styles.providerBalance}>
+                      {formatBalanceCompact(totalBal)}
+                    </Text>
+                  ) : configured ? (
+                    <Text style={styles.providerBalanceNA}>---</Text>
+                  ) : (
+                    <Text style={styles.configCta}>Setup {"\u2192"}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -645,7 +423,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: spacing.md,
     paddingBottom: spacing.xxl,
   },
   loadingContainer: {
@@ -658,330 +435,231 @@ const styles = StyleSheet.create({
   // ── Header ──────────────────────────────────────────────────
 
   header: {
-    marginBottom: spacing.lg,
-    paddingTop: spacing.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl - 4,
   },
-  title: {
-    color: colors.text,
+  pageTitle: {
     fontSize: fontSize.xxl,
     fontWeight: "700",
-    letterSpacing: 0.5,
+    letterSpacing: -0.8,
+    color: colors.textPrimary,
+    fontFamily: fonts.sans,
   },
-  accentUnderline: {
-    marginTop: spacing.sm,
-    width: 48,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.accent,
-  },
-
-  // ── Summary Strip ───────────────────────────────────────────
-
-  summaryStrip: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    ...shadows.glow,
-  },
-  summaryItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  summaryLabel: {
-    color: colors.textSecondary,
+  pageSubtitle: {
     fontSize: fontSize.xs,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-  },
-  summaryValue: {
-    color: colors.primary,
-    fontSize: fontSize.xxl,
-    fontWeight: "700",
-  },
-  summaryValueCost: {
-    color: colors.accent,
-    fontSize: fontSize.lg,
-    fontWeight: "700",
-  },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: colors.surfaceBorder,
-    marginHorizontal: spacing.md,
-  },
-
-  // ── Section Header ──────────────────────────────────────────
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: fontSize.lg,
-    fontWeight: "700",
-  },
-  sectionAccent: {
-    marginLeft: spacing.sm,
-    width: 18,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.accent,
-  },
-
-  // ── Provider Cards Section ──────────────────────────────────
-
-  providersSection: {
-    marginBottom: spacing.sm,
-  },
-  unconfiguredHint: {
-    color: colors.textMuted,
-    fontSize: fontSize.xs,
-    marginBottom: spacing.sm,
-    marginTop: spacing.md,
-  },
-
-  // ── Provider Card ───────────────────────────────────────────
-
-  providerCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    ...shadows.card,
-  },
-  providerCardExpanded: {
-    borderColor: colors.primary + "40",
-  },
-  providerCardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  // Icon
-  providerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.md,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  providerIconText: {
-    fontSize: fontSize.md,
-    fontWeight: "800",
+    color: colors.textTertiary,
+    fontFamily: fonts.mono,
     letterSpacing: 1,
-  },
-
-  // Info
-  providerInfo: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  providerNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  providerName: {
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontWeight: "600",
-    marginRight: spacing.sm,
-  },
-  providerTodayCost: {
-    color: colors.textSecondary,
-    fontSize: fontSize.xs,
+    textTransform: "uppercase",
     marginTop: 2,
   },
-
-  // Status Dot
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  headerBadge: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: "rgba(59,125,255,0.2)",
+  },
+  headerBadgeText: {
+    color: colors.accent,
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    letterSpacing: 0.5,
   },
 
-  // Balance Section
-  providerBalanceSection: {
-    alignItems: "flex-end",
-    marginLeft: spacing.sm,
+  // ── Balance Card ────────────────────────────────────────────
+
+  balanceCard: {
+    marginHorizontal: spacing.xl - 4,
+    marginBottom: spacing.md,
+    backgroundColor: colors.bg2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    position: "relative",
+    overflow: "hidden",
   },
-  providerBalanceHero: {
+  balanceLabel: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.textTertiary,
+    marginBottom: spacing.xs + 2,
+  },
+  balanceAmountRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  balanceCurrency: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xl,
+    color: colors.textSecondary,
+    marginRight: 2,
+  },
+  balanceAmount: {
+    fontFamily: fonts.mono,
     fontSize: fontSize.hero,
-    fontWeight: "700",
-    lineHeight: fontSize.hero * 1.0,
-    marginBottom: -spacing.xs,
+    fontWeight: "500",
+    color: colors.textPrimary,
+    letterSpacing: -1,
+    lineHeight: fontSize.hero * 1.1,
   },
-  providerBalanceNA: {
-    color: colors.textMuted,
-    fontSize: fontSize.lg,
-    fontWeight: "600",
+  balanceMeta: {
+    flexDirection: "row",
+    gap: spacing.xl - 4,
+    marginTop: spacing.xl - 4,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  providerChevron: {
-    color: colors.textMuted,
-    fontSize: fontSize.xs,
-    marginTop: spacing.xs,
+  metaItem: {
+    flex: 1,
   },
-  providerLoadingSpinner: {
+  metaLabel: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    color: colors.textTertiary,
+    marginBottom: 3,
+  },
+  metaValue: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.md,
+    fontWeight: "500",
+    color: colors.textSecondary,
+  },
+  metaValueOk: {
+    color: colors.green,
+  },
+
+  // ── Section Label ───────────────────────────────────────────
+
+  sectionLabel: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    color: colors.textTertiary,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm + 2,
+    marginTop: spacing.xl - 4,
+  },
+
+  // ── Provider List ───────────────────────────────────────────
+
+  providerList: {
+    paddingHorizontal: spacing.xl - 4,
+    gap: spacing.sm,
+  },
+  providerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md - 2,
+    backgroundColor: colors.bg1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.md - 2,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md + 2,
     marginBottom: spacing.xs,
   },
-  providerErrorBadge: {
-    backgroundColor: colors.danger + "20",
+  providerCardActive: {
+    borderColor: "rgba(59,125,255,0.3)",
+    backgroundColor: "rgba(59,125,255,0.04)",
+  },
+
+  // Provider icon
+  providerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: spacing.sm + 2,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  providerIconText: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xs,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+
+  // Provider info
+  providerInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  providerName: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  providerStatus: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  providerStatusConfigured: {
+    color: colors.green,
+  },
+
+  // Right side
+  providerRight: {
+    flexShrink: 0,
+    alignItems: "flex-end",
+  },
+  providerBalance: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.lg - 1,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
+  providerBalanceNA: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+  },
+  providerError: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    fontWeight: "700",
+    color: colors.red,
+    backgroundColor: colors.redDim,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: borderRadius.sm,
-    marginBottom: spacing.xs,
-  },
-  providerErrorBadgeText: {
-    color: colors.danger,
-    fontSize: fontSize.xs,
-    fontWeight: "700",
-  },
-
-  // ── Expanded Content ────────────────────────────────────────
-
-  expandedContent: {
-    marginTop: spacing.md,
-  },
-  expandedSeparator: {
-    height: 1,
-    backgroundColor: colors.surfaceBorder,
-    marginBottom: spacing.md,
-  },
-  expandedSectionLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSize.xs,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: spacing.sm,
-  },
-  expandedSectionSpacer: {
-    height: spacing.md,
-  },
-
-  // Balance Breakdown
-  breakdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: spacing.xs,
-  },
-  breakdownLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-  },
-  breakdownValue: {
-    color: colors.text,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-  },
-
-  // Rate Limit Bars
-  rateLimitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  rateLimitLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSize.xs,
-    width: 36,
-    fontWeight: "600",
-  },
-  rateLimitBarBg: {
-    flex: 1,
-    height: 6,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 3,
     overflow: "hidden",
-    marginHorizontal: spacing.sm,
   },
-  rateLimitBarFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  rateLimitText: {
-    color: colors.textMuted,
-    fontSize: fontSize.xs,
-    width: 60,
-    textAlign: "right",
-  },
-
-  // Meta rows (token estimates, last refreshed)
-  expandedMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: spacing.xs,
-  },
-  expandedMetaLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-  },
-  expandedMetaValue: {
-    color: colors.text,
-    fontSize: fontSize.sm,
-    fontWeight: "500",
-  },
-
-  // Detail Link
-  detailLink: {
-    marginTop: spacing.md,
-    alignSelf: "flex-end",
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  detailLinkText: {
-    color: colors.primary,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-  },
-
-  // ── Empty Provider Card (no API key) ────────────────────────
-
-  emptyProviderCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    opacity: 0.5,
-  },
-  emptyProviderInfo: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  emptyProviderName: {
-    color: colors.textSecondary,
-    fontSize: fontSize.md,
-    fontWeight: "600",
-  },
-  emptyProviderAction: {
-    color: colors.textMuted,
-    fontSize: fontSize.sm,
-    marginTop: 2,
+  configCta: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    color: colors.accent,
+    letterSpacing: 0.5,
   },
 
   // ── Error Card ──────────────────────────────────────────────
 
   errorCard: {
-    backgroundColor: colors.surface,
+    marginHorizontal: spacing.xl - 4,
+    marginBottom: spacing.md,
+    backgroundColor: colors.bg1,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.danger,
+    borderColor: colors.red + "40",
     padding: spacing.lg,
-    marginBottom: spacing.md,
   },
   errorHeaderRow: {
     flexDirection: "row",
@@ -992,11 +670,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.danger,
+    backgroundColor: colors.red,
     marginRight: spacing.sm,
   },
   errorTitle: {
-    color: colors.danger,
+    color: colors.red,
     fontSize: fontSize.md,
     fontWeight: "600",
   },
@@ -1008,43 +686,20 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     alignSelf: "flex-start",
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: colors.bg3,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.sm,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.border,
   },
   retryButtonText: {
-    color: colors.primary,
+    color: colors.accent,
     fontSize: fontSize.sm,
     fontWeight: "600",
   },
 
-  // ── Monthly Card ────────────────────────────────────────────
-
-  monthlyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    alignItems: "center",
-    ...shadows.glow,
-  },
-  monthlyValue: {
-    color: colors.accent,
-    fontSize: fontSize.xxxl,
-    fontWeight: "700",
-    marginBottom: spacing.xs,
-  },
-  monthlyLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-  },
-
-  // ── Empty State (no API keys) ───────────────────────────────
+  // ── Empty State ─────────────────────────────────────────────
 
   emptyStateContainer: {
     flex: 1,
@@ -1057,24 +712,26 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: colors.bg2,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: spacing.lg,
     borderWidth: 2,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.border,
   },
   emptyIconText: {
-    color: colors.primary,
+    color: colors.accent,
     fontSize: fontSize.lg,
     fontWeight: "800",
+    fontFamily: fonts.mono,
     letterSpacing: 2,
   },
   emptyStateTitle: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: fontSize.xl,
     fontWeight: "700",
     marginBottom: spacing.sm,
+    fontFamily: fonts.sans,
   },
   emptyStateDesc: {
     color: colors.textSecondary,
@@ -1082,16 +739,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
     marginBottom: spacing.lg,
+    fontFamily: fonts.mono,
   },
   emptyStateButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
-    ...shadows.glow,
   },
   emptyStateButtonText: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: fontSize.md,
     fontWeight: "700",
   },

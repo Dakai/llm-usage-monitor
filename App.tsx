@@ -62,8 +62,8 @@ export default function App() {
           screenOptions={{
             headerShown: false,
             tabBarStyle: {
-              backgroundColor: colors.surface,
-              borderTopColor: colors.surfaceBorder,
+              backgroundColor: colors.bg1,
+              borderTopColor: colors.border,
               borderTopWidth: 1,
               height: 60,
               paddingBottom: 8,
@@ -71,8 +71,8 @@ export default function App() {
               elevation: 0,
               shadowOpacity: 0,
             },
-            tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.textMuted,
+            tabBarActiveTintColor: colors.accent,
+            tabBarInactiveTintColor: colors.textTertiary,
             tabBarLabelStyle: {
               fontSize: 11,
             },
@@ -118,9 +118,9 @@ export default function App() {
 const styles = StyleSheet.create({
   icon: {
     fontSize: 22,
-    color: colors.textMuted,
+    color: colors.textTertiary,
   },
   iconActive: {
-    color: colors.primary,
+    color: colors.accent,
   },
 });

@@ -19,7 +19,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { useSettings } from "../hooks/useSettings";
 import { getAvailableProviders, getProvider } from "../api";
 import { AppSettings, ProviderSettings, ProviderType } from "../types";
-import { colors, spacing, borderRadius, fontSize, shadows } from "../theme";
+import { colors, spacing, borderRadius, fontSize, fonts, providerColors } from "../theme";
 
 // Enable LayoutAnimation on Android
 if (
@@ -40,16 +40,9 @@ const ALL_PROVIDERS: ProviderType[] = [
 
 const REFRESH_OPTIONS = [15, 30, 60, 120];
 
-const PROVIDER_BRAND: Record<ProviderType, string> = {
-  deepseek: "#1E90FF",
-  openai: "#10A37F",
-  anthropic: "#D97757",
-  gemini: "#4285F4",
-};
-
 const PROVIDER_ICONS: Record<ProviderType, string> = {
   deepseek: "DS",
-  openai: "AI",
+  openai: "OA",
   anthropic: "AN",
   gemini: "GM",
 };
@@ -58,8 +51,8 @@ const PROVIDER_ICONS: Record<ProviderType, string> = {
 
 function maskApiKey(key: string): string {
   if (!key) return "";
-  if (key.length <= 8) return key[0] + "••••••••";
-  return key.slice(0, 3) + "••••••••" + key.slice(-4);
+  if (key.length <= 8) return key[0] + "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+  return key.slice(0, 3) + "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + key.slice(-4);
 }
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -222,19 +215,19 @@ export default function SettingsScreen() {
     [providerForms]
   );
 
-  // ── Navigation guard (unsaved changes warning) ─────────────────
+  // ── Navigation guard ────────────────────────────────────────────
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
       if (!hasUnsavedChanges) return;
       e.preventDefault();
       Alert.alert(
-        "未保存的更改",
-        "您有未保存的更改，确定要离开吗？",
+        "Unsaved Changes",
+        "You have unsaved changes. Leave anyway?",
         [
-          { text: "继续编辑", style: "cancel" },
+          { text: "Keep Editing", style: "cancel" },
           {
-            text: "放弃更改",
+            text: "Discard",
             style: "destructive",
             onPress: () => navigation.dispatch(e.data.action),
           },
@@ -244,7 +237,7 @@ export default function SettingsScreen() {
     return unsubscribe;
   }, [navigation, hasUnsavedChanges]);
 
-  // ── Biometric availability check ────────────────────────────────
+  // ── Biometric check ─────────────────────────────────────────────
 
   const [biometricAvailable, setBiometricAvailable] = useState(false);
 
@@ -257,7 +250,6 @@ export default function SettingsScreen() {
     })();
   }, []);
 
-  // Reset biometric + visibility on tab blur
   useFocusEffect(
     useCallback(() => {
       return () => {
@@ -286,8 +278,8 @@ export default function SettingsScreen() {
 
       if (biometricAvailable && !biometricAuthed[provider]) {
         const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: "验证身份以查看 API Key",
-          fallbackLabel: "使用设备密码",
+          promptMessage: "Authenticate to view API Key",
+          fallbackLabel: "Use device password",
           disableDeviceFallback: false,
         });
         if (!result.success) return;
@@ -348,7 +340,7 @@ export default function SettingsScreen() {
           ...prev,
           [provider]: {
             testing: false,
-            result: { success: false, message: "请先输入 API Key" },
+            result: { success: false, message: "Enter API key first" },
           },
         }));
         return;
@@ -362,7 +354,7 @@ export default function SettingsScreen() {
       try {
         const providerImpl = getProvider(provider);
         if (!providerImpl) {
-          throw new Error("未找到服务提供商实现");
+          throw new Error("Provider implementation not found");
         }
         const result = await providerImpl.getBalance(form.apiKey.trim());
         if (result.isAvailable) {
@@ -375,7 +367,7 @@ export default function SettingsScreen() {
               testing: false,
               result: {
                 success: true,
-                message: `连接成功，余额: ¥${total.toFixed(2)}`,
+                message: `Connected. Balance: \u00A5${total.toFixed(2)}`,
               },
             },
           }));
@@ -384,7 +376,7 @@ export default function SettingsScreen() {
             ...prev,
             [provider]: {
               testing: false,
-              result: { success: false, message: "无法获取余额信息" },
+              result: { success: false, message: "Could not fetch balance" },
             },
           }));
         }
@@ -395,7 +387,7 @@ export default function SettingsScreen() {
             testing: false,
             result: {
               success: false,
-              message: e instanceof Error ? e.message : "连接失败",
+              message: e instanceof Error ? e.message : "Connection failed",
             },
           },
         }));
@@ -422,11 +414,11 @@ export default function SettingsScreen() {
     const globalThreshold = parseFloat(defaultLowBalanceThreshold);
 
     if (isNaN(globalRefresh) || globalRefresh < 1) {
-      setStatusMessage({ type: "error", message: "刷新间隔至少为 1 分钟" });
+      setStatusMessage({ type: "error", message: "Refresh interval must be at least 1 min" });
       return;
     }
     if (isNaN(globalThreshold) || globalThreshold < 0) {
-      setStatusMessage({ type: "error", message: "阈值必须为有效数字" });
+      setStatusMessage({ type: "error", message: "Threshold must be a valid number" });
       return;
     }
 
@@ -434,7 +426,7 @@ export default function SettingsScreen() {
       (p) => providerForms[p].apiKey.trim().length > 0
     );
     if (!hasAnyKey) {
-      setStatusMessage({ type: "error", message: "请至少配置一个 API Key" });
+      setStatusMessage({ type: "error", message: "Configure at least one API key" });
       return;
     }
 
@@ -465,11 +457,11 @@ export default function SettingsScreen() {
     try {
       await saveSettings(newSettings);
       initialSettingsRef.current = newSettings;
-      setStatusMessage({ type: "success", message: "设置已保存" });
+      setStatusMessage({ type: "success", message: "Settings saved" });
     } catch (e) {
       setStatusMessage({
         type: "error",
-        message: e instanceof Error ? e.message : "保存失败",
+        message: e instanceof Error ? e.message : "Save failed",
       });
     } finally {
       setSaving(false);
@@ -487,8 +479,8 @@ export default function SettingsScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>{"加载设置中..."}</Text>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={styles.loadingText}>Loading settings...</Text>
         </View>
       </SafeAreaView>
     );
@@ -508,351 +500,374 @@ export default function SettingsScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
+          {/* ── Header ── */}
           <View style={styles.header}>
-            <Text style={styles.title}>{"设置"}</Text>
-            <View style={styles.accentUnderline} />
+            <View>
+              <Text style={styles.pageTitle}>Settings</Text>
+              <Text style={styles.pageSubtitle}>Preferences</Text>
+            </View>
           </View>
 
           {/* ═══════════════════════════════════════════════════════
-              Global Defaults Card
+              GLOBAL DEFAULTS
               ═══════════════════════════════════════════════════════ */}
-          <View style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardTitle}>{"全局默认"}</Text>
+          <Text style={styles.sectionLabel}>GLOBAL DEFAULTS</Text>
+          <View style={styles.section}>
+            {/* Refresh Interval */}
+            <View style={styles.settingsRow}>
+              <View style={styles.settingsRowLeft}>
+                <Text style={styles.settingsRowLabel}>Refresh Interval</Text>
+                <Text style={styles.settingsRowSub}>Auto-sync frequency</Text>
+              </View>
+              <View style={styles.intervalGroup}>
+                {REFRESH_OPTIONS.map((opt) => {
+                  const isActive = String(opt) === defaultRefreshIntervalMin;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[
+                        styles.intervalBtn,
+                        isActive && styles.intervalBtnSelected,
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setDefaultRefreshIntervalMin(String(opt));
+                        setStatusMessage(null);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.intervalBtnText,
+                          isActive && styles.intervalBtnTextSelected,
+                        ]}
+                      >
+                        {opt}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
-            {/* Refresh Interval Picker */}
-            <Text style={styles.label}>{"默认刷新间隔"}</Text>
-            <View style={styles.pickerRow}>
-              {REFRESH_OPTIONS.map((opt) => {
-                const isActive = String(opt) === defaultRefreshIntervalMin;
-                return (
+            {/* Balance Alert */}
+            <View style={styles.settingsRow}>
+              <View style={styles.settingsRowLeft}>
+                <Text style={styles.settingsRowLabel}>Balance Alert</Text>
+                <Text style={styles.settingsRowSub}>Warn when below</Text>
+              </View>
+              <View style={styles.thresholdWrap}>
+                <Text style={styles.thresholdCurrency}>{"\u00A5"}</Text>
+                <TextInput
+                  style={styles.thresholdInput}
+                  value={defaultLowBalanceThreshold}
+                  onChangeText={(v) => {
+                    setDefaultLowBalanceThreshold(v);
+                    setStatusMessage(null);
+                  }}
+                  placeholder="1.00"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="decimal-pad"
+                  selectionColor={colors.accent}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* ═══════════════════════════════════════════════════════
+              PROVIDERS
+              ═══════════════════════════════════════════════════════ */}
+          <Text style={styles.sectionLabel}>PROVIDERS</Text>
+          <View style={styles.section}>
+            {ALL_PROVIDERS.map((pType) => {
+              const provider = providers.find((p) => p.type === pType);
+              if (!provider) return null;
+              const form = providerForms[pType];
+              const isExpanded = expandedProvider === pType;
+              const isConfigured = form.apiKey.trim().length > 0;
+              const changes = hasProviderChanges(pType);
+
+              return (
+                <View key={pType}>
+                  {/* ── Row (collapsed) ── */}
                   <TouchableOpacity
-                    key={opt}
                     style={[
-                      styles.pickerChip,
-                      isActive && styles.pickerChipActive,
+                      styles.provRow,
+                      ALL_PROVIDERS.indexOf(pType) < ALL_PROVIDERS.length - 1 &&
+                        styles.provRowBorder,
                     ]}
                     activeOpacity={0.7}
-                    onPress={() => {
-                      setDefaultRefreshIntervalMin(String(opt));
-                      setStatusMessage(null);
-                    }}
+                    onPress={() => handleExpandProvider(pType)}
                   >
-                    <Text
-                      style={[
-                        styles.pickerChipText,
-                        isActive && styles.pickerChipTextActive,
-                      ]}
-                    >
-                      {opt}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-              <Text style={styles.pickerUnit}>{"分钟"}</Text>
-            </View>
-
-            {/* Low Balance Threshold */}
-            <Text style={[styles.label, { marginTop: spacing.md }]}>
-              {"默认余额告警阈值"}
-            </Text>
-            <View style={styles.inputRow}>
-              <Text style={styles.currencyPrefix}>{"¥"}</Text>
-              <TextInput
-                style={styles.thresholdInput}
-                value={defaultLowBalanceThreshold}
-                onChangeText={(v) => {
-                  setDefaultLowBalanceThreshold(v);
-                  setStatusMessage(null);
-                }}
-                placeholder="10"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="decimal-pad"
-                selectionColor={colors.primary}
-              />
-            </View>
-          </View>
-
-          {/* ═══════════════════════════════════════════════════════
-              Provider Config List
-              ═══════════════════════════════════════════════════════ */}
-          <Text style={styles.sectionTitle}>{"服务提供商"}</Text>
-
-          {ALL_PROVIDERS.map((pType) => {
-            const provider = providers.find((p) => p.type === pType);
-            if (!provider) return null;
-            const form = providerForms[pType];
-            const isExpanded = expandedProvider === pType;
-            const isConfigured = form.apiKey.trim().length > 0;
-            const brandColor = PROVIDER_BRAND[pType];
-            const changes = hasProviderChanges(pType);
-
-            return (
-              <View key={pType} style={styles.providerCard}>
-                {/* ── Header (collapsed view) ── */}
-                <TouchableOpacity
-                  style={styles.providerHeader}
-                  activeOpacity={0.7}
-                  onPress={() => handleExpandProvider(pType)}
-                >
-                  <View style={styles.providerHeaderLeft}>
-                    <View
-                      style={[styles.brandIcon, { backgroundColor: brandColor }]}
-                    >
-                      <Text style={styles.brandIconText}>
-                        {PROVIDER_ICONS[pType]}
-                      </Text>
-                    </View>
-                    <Text style={styles.providerName}>{provider.name}</Text>
-                  </View>
-
-                  <View style={styles.providerHeaderRight}>
-                    {changes && <View style={styles.unsavedDot} />}
+                    {/* Badge */}
                     <View
                       style={[
-                        styles.statusChip,
+                        styles.provBadge,
                         isConfigured
-                          ? styles.statusChipConfigured
-                          : styles.statusChipUnconfigured,
+                          ? {
+                              backgroundColor: providerColors[pType] + "1A",
+                              borderColor: providerColors[pType] + "33",
+                            }
+                          : {
+                              backgroundColor: colors.bg3,
+                              borderColor: colors.border,
+                            },
                       ]}
                     >
                       <Text
                         style={[
-                          styles.statusChipText,
+                          styles.provBadgeText,
                           {
                             color: isConfigured
-                              ? colors.success
-                              : colors.textMuted,
+                              ? providerColors[pType]
+                              : colors.textTertiary,
                           },
                         ]}
                       >
-                        {isConfigured ? "已配置 ✓" : "未配置"}
+                        {PROVIDER_ICONS[pType]}
                       </Text>
                     </View>
-                    <Text style={styles.chevron}>
-                      {isExpanded ? "▲" : "▼"}
+
+                    {/* Name */}
+                    <Text style={styles.provName}>{provider.name}</Text>
+
+                    {/* Status tag */}
+                    {isConfigured ? (
+                      <View style={styles.tagConfigured}>
+                        <Text style={styles.tagConfiguredText}>Active</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.tagUnconfigured}>
+                        <Text style={styles.tagUnconfiguredText}>Setup</Text>
+                      </View>
+                    )}
+
+                    {/* Unsaved dot */}
+                    {changes && <View style={styles.unsavedDot} />}
+
+                    {/* Chevron */}
+                    <Text style={styles.expandIcon}>
+                      {isExpanded ? "\u25B2" : "\u203A"}
                     </Text>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
 
-                {/* ── Expanded body ── */}
-                {isExpanded && (
-                  <View style={styles.providerBody}>
-                    {/* API Key */}
-                    <Text style={styles.label}>{"API Key"}</Text>
-                    <View style={styles.inputRow}>
-                      <TextInput
-                        style={styles.input}
-                        value={
-                          visibleApiKeys[pType]
-                            ? form.apiKey
-                            : maskApiKey(form.apiKey)
-                        }
-                        onChangeText={(v) =>
-                          updateProviderField(pType, "apiKey", v)
-                        }
-                        placeholder="sk-..."
-                        placeholderTextColor={colors.textMuted}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={visibleApiKeys[pType]}
-                        selectionColor={colors.primary}
-                      />
-                      <TouchableOpacity
-                        style={[
-                          styles.toggleButton,
-                          biometricAvailable &&
-                            !biometricAuthed[pType] &&
-                            styles.toggleButtonLocked,
-                        ]}
-                        activeOpacity={0.7}
-                        onPress={() => handleToggleApiKey(pType)}
-                      >
-                        <Text style={styles.toggleButtonText}>
-                          {visibleApiKeys[pType]
-                            ? "隐藏"
-                            : biometricAvailable
-                              ? "🔒 显示"
-                              : "显示"}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Custom Refresh Interval Toggle */}
-                    <View style={styles.toggleRow}>
-                      <Text style={styles.toggleLabel}>
-                        {"使用自定义刷新间隔"}
-                      </Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.switch,
-                          form.useCustomRefresh && styles.switchActive,
-                        ]}
-                        activeOpacity={0.7}
-                        onPress={() => handleToggleCustomRefresh(pType)}
-                      >
-                        <View
-                          style={[
-                            styles.switchThumb,
-                            form.useCustomRefresh &&
-                              styles.switchThumbActive,
-                          ]}
-                        />
-                      </TouchableOpacity>
-                    </View>
-
-                    {form.useCustomRefresh && (
-                      <View style={styles.pickerRow}>
-                        {REFRESH_OPTIONS.map((opt) => {
-                          const isActive =
-                            String(opt) === form.customRefreshIntervalMin;
-                          return (
-                            <TouchableOpacity
-                              key={opt}
-                              style={[
-                                styles.pickerChip,
-                                isActive && styles.pickerChipActive,
-                              ]}
-                              activeOpacity={0.7}
-                              onPress={() =>
-                                updateProviderField(
-                                  pType,
-                                  "customRefreshIntervalMin",
-                                  String(opt)
-                                )
-                              }
-                            >
-                              <Text
-                                style={[
-                                  styles.pickerChipText,
-                                  isActive && styles.pickerChipTextActive,
-                                ]}
-                              >
-                                {opt}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                        <Text style={styles.pickerUnit}>{"分钟"}</Text>
-                      </View>
-                    )}
-
-                    {/* Custom Threshold Toggle */}
-                    <View style={styles.toggleRow}>
-                      <Text style={styles.toggleLabel}>
-                        {"使用自定义告警阈值"}
-                      </Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.switch,
-                          form.useCustomThreshold && styles.switchActive,
-                        ]}
-                        activeOpacity={0.7}
-                        onPress={() => handleToggleCustomThreshold(pType)}
-                      >
-                        <View
-                          style={[
-                            styles.switchThumb,
-                            form.useCustomThreshold &&
-                              styles.switchThumbActive,
-                          ]}
-                        />
-                      </TouchableOpacity>
-                    </View>
-
-                    {form.useCustomThreshold && (
+                  {/* ── Expanded body ── */}
+                  {isExpanded && (
+                    <View style={styles.provBody}>
+                      {/* API Key */}
+                      <Text style={styles.fieldLabel}>API Key</Text>
                       <View style={styles.inputRow}>
-                        <Text style={styles.currencyPrefix}>{"¥"}</Text>
                         <TextInput
-                          style={styles.thresholdInput}
-                          value={form.customLowBalanceThreshold}
-                          onChangeText={(v) =>
-                            updateProviderField(
-                              pType,
-                              "customLowBalanceThreshold",
-                              v
-                            )
+                          style={styles.input}
+                          value={
+                            visibleApiKeys[pType]
+                              ? form.apiKey
+                              : maskApiKey(form.apiKey)
                           }
-                          placeholder="10"
-                          placeholderTextColor={colors.textMuted}
-                          keyboardType="decimal-pad"
-                          selectionColor={colors.primary}
+                          onChangeText={(v) =>
+                            updateProviderField(pType, "apiKey", v)
+                          }
+                          placeholder="sk-..."
+                          placeholderTextColor={colors.textTertiary}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          editable={visibleApiKeys[pType]}
+                          selectionColor={colors.accent}
                         />
+                        <TouchableOpacity
+                          style={[
+                            styles.toggleKeyBtn,
+                            biometricAvailable &&
+                              !biometricAuthed[pType] &&
+                              styles.toggleKeyBtnLocked,
+                          ]}
+                          activeOpacity={0.7}
+                          onPress={() => handleToggleApiKey(pType)}
+                        >
+                          <Text style={styles.toggleKeyBtnText}>
+                            {visibleApiKeys[pType]
+                              ? "Hide"
+                              : biometricAvailable
+                                ? "\uD83D\uDD12 Show"
+                                : "Show"}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
-                    )}
 
-                    {/* Action buttons */}
-                    <View style={styles.actionRow}>
-                      <TouchableOpacity
-                        style={styles.testButton}
-                        activeOpacity={0.7}
-                        onPress={() => handleTestConnection(pType)}
-                        disabled={testStates[pType].testing}
-                      >
-                        {testStates[pType].testing ? (
-                          <ActivityIndicator
-                            color={colors.primary}
-                            size="small"
+                      {/* Custom Refresh Toggle */}
+                      <View style={styles.toggleRow}>
+                        <Text style={styles.toggleLabel}>
+                          Custom refresh interval
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.switch,
+                            form.useCustomRefresh && styles.switchActive,
+                          ]}
+                          activeOpacity={0.7}
+                          onPress={() => handleToggleCustomRefresh(pType)}
+                        >
+                          <View
+                            style={[
+                              styles.switchThumb,
+                              form.useCustomRefresh && styles.switchThumbActive,
+                            ]}
                           />
-                        ) : (
-                          <Text style={styles.testButtonText}>{"测试连接"}</Text>
-                        )}
-                      </TouchableOpacity>
+                        </TouchableOpacity>
+                      </View>
 
-                      <TouchableOpacity
-                        style={styles.clearButton}
-                        activeOpacity={0.7}
-                        onPress={() => handleClearApiKey(pType)}
-                      >
-                        <Text style={styles.clearButtonText}>{"清除"}</Text>
-                      </TouchableOpacity>
-                    </View>
+                      {form.useCustomRefresh && (
+                        <View style={styles.intervalGroup}>
+                          {REFRESH_OPTIONS.map((opt) => {
+                            const isActive =
+                              String(opt) === form.customRefreshIntervalMin;
+                            return (
+                              <TouchableOpacity
+                                key={opt}
+                                style={[
+                                  styles.intervalBtn,
+                                  isActive && styles.intervalBtnSelected,
+                                ]}
+                                activeOpacity={0.7}
+                                onPress={() =>
+                                  updateProviderField(
+                                    pType,
+                                    "customRefreshIntervalMin",
+                                    String(opt)
+                                  )
+                                }
+                              >
+                                <Text
+                                  style={[
+                                    styles.intervalBtnText,
+                                    isActive && styles.intervalBtnTextSelected,
+                                  ]}
+                                >
+                                  {opt}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      )}
 
-                    {/* Test connection result */}
-                    {testStates[pType].result && (
-                      <View
-                        style={[
-                          styles.testResult,
-                          testStates[pType].result.success
-                            ? styles.testResultSuccess
-                            : styles.testResultError,
-                        ]}
-                      >
+                      {/* Custom Threshold Toggle */}
+                      <View style={styles.toggleRow}>
+                        <Text style={styles.toggleLabel}>
+                          Custom alert threshold
+                        </Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.switch,
+                            form.useCustomThreshold && styles.switchActive,
+                          ]}
+                          activeOpacity={0.7}
+                          onPress={() => handleToggleCustomThreshold(pType)}
+                        >
+                          <View
+                            style={[
+                              styles.switchThumb,
+                              form.useCustomThreshold &&
+                                styles.switchThumbActive,
+                            ]}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {form.useCustomThreshold && (
+                        <View style={styles.thresholdWrap}>
+                          <Text style={styles.thresholdCurrency}>
+                            {"\u00A5"}
+                          </Text>
+                          <TextInput
+                            style={styles.thresholdInput}
+                            value={form.customLowBalanceThreshold}
+                            onChangeText={(v) =>
+                              updateProviderField(
+                                pType,
+                                "customLowBalanceThreshold",
+                                v
+                              )
+                            }
+                            placeholder="10"
+                            placeholderTextColor={colors.textTertiary}
+                            keyboardType="decimal-pad"
+                            selectionColor={colors.accent}
+                          />
+                        </View>
+                      )}
+
+                      {/* Action buttons */}
+                      <View style={styles.actionRow}>
+                        <TouchableOpacity
+                          style={styles.testButton}
+                          activeOpacity={0.7}
+                          onPress={() => handleTestConnection(pType)}
+                          disabled={testStates[pType].testing}
+                        >
+                          {testStates[pType].testing ? (
+                            <ActivityIndicator
+                              color={colors.accent}
+                              size="small"
+                            />
+                          ) : (
+                            <Text style={styles.testButtonText}>
+                              Test Connection
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.clearButton}
+                          activeOpacity={0.7}
+                          onPress={() => handleClearApiKey(pType)}
+                        >
+                          <Text style={styles.clearButtonText}>Clear</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Test result */}
+                      {testStates[pType].result && (
                         <View
                           style={[
-                            styles.statusDot,
-                            {
-                              backgroundColor: testStates[pType].result.success
-                                ? colors.success
-                                : colors.danger,
-                            },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.testResultText,
-                            {
-                              color: testStates[pType].result.success
-                                ? colors.success
-                                : colors.danger,
-                            },
+                            styles.testResult,
+                            testStates[pType].result.success
+                              ? styles.testResultSuccess
+                              : styles.testResultError,
                           ]}
                         >
-                          {testStates[pType].result.message}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
-            );
-          })}
+                          <View
+                            style={[
+                              styles.statusDot,
+                              {
+                                backgroundColor: testStates[pType].result
+                                  .success
+                                  ? colors.green
+                                  : colors.red,
+                              },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.testResultText,
+                              {
+                                color: testStates[pType].result.success
+                                  ? colors.green
+                                  : colors.red,
+                              },
+                            ]}
+                          >
+                            {testStates[pType].result.message}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
 
-          {/* ═══════════════════════════════════════════════════════
-              Save Status Message
-              ═══════════════════════════════════════════════════════ */}
+          {/* ── Status Message ── */}
           {statusMessage && (
             <View
               style={[
@@ -868,8 +883,8 @@ export default function SettingsScreen() {
                   {
                     backgroundColor:
                       statusMessage.type === "success"
-                        ? colors.success
-                        : colors.danger,
+                        ? colors.green
+                        : colors.red,
                   },
                 ]}
               />
@@ -879,8 +894,8 @@ export default function SettingsScreen() {
                   {
                     color:
                       statusMessage.type === "success"
-                        ? colors.success
-                        : colors.danger,
+                        ? colors.green
+                        : colors.red,
                   },
                 ]}
               >
@@ -889,9 +904,7 @@ export default function SettingsScreen() {
             </View>
           )}
 
-          {/* ═══════════════════════════════════════════════════════
-              Save Button
-              ═══════════════════════════════════════════════════════ */}
+          {/* ── Save Button ── */}
           <TouchableOpacity
             style={[styles.saveButton, saving && styles.saveButtonDisabled]}
             activeOpacity={0.8}
@@ -899,9 +912,9 @@ export default function SettingsScreen() {
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator color={colors.text} size="small" />
+              <ActivityIndicator color="#ffffff" size="small" />
             ) : (
-              <Text style={styles.saveButtonText}>{"保存设置"}</Text>
+              <Text style={styles.saveButtonText}>Save Settings</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -913,7 +926,6 @@ export default function SettingsScreen() {
 // ── Styles ────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Layout
   safe: {
     flex: 1,
     backgroundColor: colors.background,
@@ -925,7 +937,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: spacing.md,
+    paddingHorizontal: spacing.xl - 4,
     paddingBottom: spacing.xxl,
   },
   loadingContainer: {
@@ -935,249 +947,270 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    color: colors.textSecondary,
+    fontFamily: fonts.mono,
     fontSize: fontSize.sm,
+    color: colors.textSecondary,
     marginTop: spacing.md,
   },
 
-  // Header
+  // ── Header ──────────────────────────────────────────────────
+
   header: {
-    marginBottom: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl - 4,
   },
-  title: {
-    color: colors.text,
+  pageTitle: {
     fontSize: fontSize.xxl,
     fontWeight: "700",
-    letterSpacing: 0.5,
+    letterSpacing: -0.8,
+    color: colors.textPrimary,
+    fontFamily: fonts.sans,
   },
-  accentUnderline: {
-    marginTop: spacing.sm,
-    width: 48,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.accent,
-  },
-
-  // Section
-  sectionTitle: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    textTransform: "uppercase",
+  pageSubtitle: {
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    fontFamily: fonts.mono,
     letterSpacing: 1,
-    marginBottom: spacing.md,
-    marginTop: spacing.md,
+    textTransform: "uppercase",
+    marginTop: 2,
   },
 
-  // Card (global defaults)
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+  // ── Section Label ───────────────────────────────────────────
+
+  sectionLabel: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    color: colors.textTertiary,
+    marginBottom: spacing.sm + 2,
+  },
+
+  // ── Section Card ────────────────────────────────────────────
+
+  section: {
+    backgroundColor: colors.bg1,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    padding: spacing.md,
+    borderColor: colors.border,
+    overflow: "hidden",
     marginBottom: spacing.lg,
   },
-  cardHeaderRow: {
+
+  // ── Settings Row ────────────────────────────────────────────
+
+  settingsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.md,
+    paddingVertical: spacing.md - 2,
+    paddingHorizontal: spacing.md + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.md,
   },
-  cardTitle: {
-    color: colors.text,
+  settingsRowLeft: {
+    flex: 1,
+  },
+  settingsRowLabel: {
     fontSize: fontSize.md,
-    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  settingsRowSub: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    marginTop: 1,
   },
 
-  // Form elements
-  label: {
-    color: colors.text,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    marginBottom: spacing.sm,
-    letterSpacing: 0.3,
+  // ── Interval Buttons ────────────────────────────────────────
+
+  intervalGroup: {
+    flexDirection: "row",
+    gap: spacing.xs,
   },
-  inputRow: {
+  intervalBtn: {
+    paddingVertical: spacing.xs + 1,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: spacing.xs + 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "transparent",
+  },
+  intervalBtnSelected: {
+    backgroundColor: colors.accentDim,
+    borderColor: "rgba(59,125,255,0.35)",
+  },
+  intervalBtnText: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  intervalBtnTextSelected: {
+    color: colors.accent,
+  },
+
+  // ── Threshold Input ─────────────────────────────────────────
+
+  thresholdWrap: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.xs,
   },
-  input: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontVariant: ["tabular-nums"],
-  },
-  currencyPrefix: {
-    color: colors.textSecondary,
-    fontSize: fontSize.md,
-    fontWeight: "600",
-    marginRight: spacing.sm,
+  thresholdCurrency: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.sm,
+    color: colors.textTertiary,
   },
   thresholdInput: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.bg3,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.border,
+    borderRadius: borderRadius.sm,
+    paddingVertical: spacing.xs + 2,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontVariant: ["tabular-nums"],
-  },
-  toggleButton: {
-    marginLeft: spacing.sm,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-  },
-  toggleButtonLocked: {
-    borderColor: colors.warning,
-  },
-  toggleButtonText: {
-    color: colors.primary,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
+    fontFamily: fonts.mono,
+    fontSize: fontSize.md - 1,
+    color: colors.textPrimary,
+    width: 80,
+    textAlign: "right",
   },
 
-  // Picker chips
-  pickerRow: {
+  // ── Provider Row ────────────────────────────────────────────
+
+  provRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.md,
+    paddingVertical: spacing.md - 2,
+    paddingHorizontal: spacing.md + 2,
   },
-  pickerChip: {
-    backgroundColor: colors.background,
+  provRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  provBadge: {
+    width: 42,
+    paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.sm,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minWidth: 48,
     alignItems: "center",
-  },
-  pickerChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceLight,
-  },
-  pickerChipText: {
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-  },
-  pickerChipTextActive: {
-    color: colors.primary,
-  },
-  pickerUnit: {
-    color: colors.textMuted,
-    fontSize: fontSize.xs,
-    marginLeft: spacing.xs,
-  },
-
-  // Provider card
-  providerCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    marginBottom: spacing.md,
-    overflow: "hidden",
-  },
-  providerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  providerHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  providerHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  brandIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
     justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.sm,
   },
-  brandIconText: {
-    color: "#FFFFFF",
-    fontSize: fontSize.xs,
-    fontWeight: "800",
+  provBadgeText: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    fontWeight: "600",
     letterSpacing: 0.5,
   },
-  providerName: {
-    color: colors.text,
+  provName: {
+    flex: 1,
     fontSize: fontSize.md,
-    fontWeight: "600",
-  },
-  providerBody: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-    paddingTop: spacing.md,
+    color: colors.textPrimary,
   },
 
-  // Status chip
-  statusChip: {
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 2,
+  // Status tags
+  tagConfigured: {
+    paddingVertical: 3,
+    paddingHorizontal: spacing.xs + 5,
+    borderRadius: spacing.xs + 1,
+    backgroundColor: colors.greenDim,
+    borderWidth: 1,
+    borderColor: "rgba(31,200,126,0.2)",
   },
-  statusChipConfigured: {
-    backgroundColor: "rgba(76, 175, 80, 0.15)",
+  tagConfiguredText: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    color: colors.green,
   },
-  statusChipUnconfigured: {
-    backgroundColor: "rgba(85, 102, 128, 0.15)",
+  tagUnconfigured: {
+    paddingVertical: 3,
+    paddingHorizontal: spacing.xs + 5,
+    borderRadius: spacing.xs + 1,
+    backgroundColor: colors.bg3,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  statusChipText: {
-    fontSize: fontSize.xs,
-    fontWeight: "600",
+  tagUnconfiguredText: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.xxs + 1,
+    color: colors.textTertiary,
   },
 
-  // Unsaved changes dot
+  // Unsaved dot
   unsavedDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.warning,
+    backgroundColor: colors.amber,
   },
 
-  // Chevron
-  chevron: {
-    color: colors.textMuted,
-    fontSize: fontSize.xs,
-    marginLeft: spacing.xs,
+  // Expand icon
+  expandIcon: {
+    fontFamily: fonts.mono,
+    fontSize: fontSize.lg,
+    color: colors.textTertiary,
   },
 
-  // Toggle switch (custom)
+  // ── Provider Expanded Body ──────────────────────────────────
+
+  provBody: {
+    paddingHorizontal: spacing.md + 2,
+    paddingBottom: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  fieldLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    fontFamily: fonts.mono,
+    fontWeight: "500",
+    marginBottom: spacing.sm,
+    letterSpacing: 0.3,
+  },
+
+  // Input
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: colors.bg3,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    color: colors.textPrimary,
+    fontSize: fontSize.md,
+    fontFamily: fonts.mono,
+  },
+  toggleKeyBtn: {
+    backgroundColor: colors.bg2,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  toggleKeyBtnLocked: {
+    borderColor: colors.amber,
+  },
+  toggleKeyBtnText: {
+    color: colors.accent,
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+
+  // Toggle switch
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   toggleLabel: {
     color: colors.textSecondary,
@@ -1189,21 +1222,22 @@ const styles = StyleSheet.create({
     width: 44,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.surfaceBorder,
+    backgroundColor: colors.bg3,
     justifyContent: "center",
     paddingHorizontal: 2,
   },
   switchActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
   },
   switchThumb: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.text,
+    backgroundColor: colors.textSecondary,
   },
   switchThumbActive: {
     alignSelf: "flex-end",
+    backgroundColor: "#ffffff",
   },
 
   // Action buttons
@@ -1214,33 +1248,33 @@ const styles = StyleSheet.create({
   },
   testButton: {
     flex: 1,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: colors.bg2,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.accent + "40",
     paddingVertical: spacing.sm + 2,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 40,
+    minHeight: 42,
   },
   testButtonText: {
-    color: colors.primary,
+    color: colors.accent,
     fontSize: fontSize.sm,
     fontWeight: "600",
   },
   clearButton: {
     flex: 1,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: colors.bg2,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.danger,
+    borderColor: colors.red + "40",
     paddingVertical: spacing.sm + 2,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 40,
+    minHeight: 42,
   },
   clearButtonText: {
-    color: colors.danger,
+    color: colors.red,
     fontSize: fontSize.sm,
     fontWeight: "600",
   },
@@ -1254,30 +1288,24 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   testResultSuccess: {
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    backgroundColor: colors.greenDim,
     borderWidth: 1,
-    borderColor: "rgba(76, 175, 80, 0.3)",
+    borderColor: "rgba(31,200,126,0.3)",
   },
   testResultError: {
-    backgroundColor: "rgba(244, 67, 54, 0.1)",
+    backgroundColor: colors.redDim,
     borderWidth: 1,
-    borderColor: "rgba(244, 67, 54, 0.3)",
+    borderColor: "rgba(240,68,68,0.3)",
   },
   testResultText: {
+    fontFamily: fonts.mono,
     fontSize: fontSize.xs,
     fontWeight: "500",
     flex: 1,
   },
 
-  // Field hint (reused from old code)
-  fieldHint: {
-    color: colors.textMuted,
-    fontSize: fontSize.xs,
-    marginTop: spacing.xs,
-    lineHeight: 16,
-  },
+  // ── Status Message ──────────────────────────────────────────
 
-  // Status message (global save)
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -1286,14 +1314,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   statusSuccess: {
-    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    backgroundColor: colors.greenDim,
     borderWidth: 1,
-    borderColor: "rgba(76, 175, 80, 0.3)",
+    borderColor: "rgba(31,200,126,0.3)",
   },
   statusError: {
-    backgroundColor: "rgba(244, 67, 54, 0.1)",
+    backgroundColor: colors.redDim,
     borderWidth: 1,
-    borderColor: "rgba(244, 67, 54, 0.3)",
+    borderColor: "rgba(240,68,68,0.3)",
   },
   statusDot: {
     width: 8,
@@ -1302,28 +1330,31 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   statusText: {
+    fontFamily: fonts.mono,
     fontSize: fontSize.sm,
     fontWeight: "500",
     flex: 1,
   },
 
-  // Save button
+  // ── Save Button ─────────────────────────────────────────────
+
   saveButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.accent,
+    borderRadius: spacing.md - 2,
     paddingVertical: spacing.md,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 52,
-    ...shadows.glow,
+    marginTop: spacing.sm,
   },
   saveButtonDisabled: {
     opacity: 0.6,
   },
   saveButtonText: {
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+    color: "#ffffff",
+    fontSize: fontSize.lg - 1,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    fontFamily: fonts.sans,
   },
 });

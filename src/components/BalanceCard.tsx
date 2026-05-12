@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { BalanceInfo } from "../types";
-import { colors, spacing, borderRadius, fontSize, shadows } from "../theme";
+import { colors, spacing, borderRadius, fontSize } from "../theme";
 
 interface Props {
   balanceInfos: BalanceInfo[];
@@ -14,9 +14,9 @@ function getCurrencySymbol(currency: string): string {
 }
 
 function getStatusColor(value: number): string {
-  if (value <= 0) return colors.danger;
-  if (value < 1) return colors.warning;
-  return colors.success;
+  if (value <= 0) return colors.red;
+  if (value < 1) return colors.amber;
+  return colors.green;
 }
 
 function formatBalance(value: number): string {
@@ -90,7 +90,7 @@ export default function BalanceCard({
   const toppedUpTotal = balanceInfos.reduce((sum, b) => sum + b.toppedUpBalance, 0);
 
   return (
-    <View style={[styles.card, shadows.glow]}>
+    <View style={styles.card}>
       <View style={styles.statusRow}>
         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
         <Text style={styles.statusLabel}>
@@ -135,11 +135,11 @@ export default function BalanceCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg1,
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.border,
     marginBottom: spacing.md,
   },
   statusRow: {
@@ -165,14 +165,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   currencySymbol: {
-    color: colors.primary,
+    color: colors.accent,
     fontSize: fontSize.xxl,
     fontWeight: "600",
     marginRight: spacing.xs,
     marginBottom: 4,
   },
   totalValue: {
-    color: colors.primary,
+    color: colors.accent,
     fontSize: fontSize.hero,
     fontWeight: "700",
     lineHeight: 56,
@@ -187,42 +187,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
+    borderTopColor: colors.border,
   },
   breakdownItem: {
     flex: 1,
     alignItems: "center",
   },
   breakdownValue: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: fontSize.md,
     fontWeight: "600",
     marginBottom: spacing.xs,
   },
   breakdownLabel: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
     fontSize: fontSize.xs,
   },
   breakdownDivider: {
     width: 1,
     height: 32,
-    backgroundColor: colors.surfaceBorder,
+    backgroundColor: colors.border,
   },
   placeholderLarge: {
     width: "60%",
     height: 48,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: colors.bg2,
     marginBottom: spacing.md,
   },
   placeholderSmall: {
     width: "40%",
     height: 20,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: colors.bg2,
   },
   noDataText: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
     fontSize: fontSize.sm,
     textAlign: "center",
     marginTop: spacing.sm,

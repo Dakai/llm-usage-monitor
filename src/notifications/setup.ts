@@ -32,7 +32,7 @@ export async function setupNotifications(): Promise<boolean> {
       name: "余额告警",
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: colors.warning,
+      lightColor: colors.amber,
       sound: "default",
       bypassDnd: true,
     });
