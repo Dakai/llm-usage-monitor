@@ -1,16 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BalanceSnapshot, DailyUsage } from "../types";
+import { BalanceSnapshot, DailyUsage, ProviderType } from "../types";
 import { deepseekProvider } from "../api/deepseek";
 
 const SNAPSHOTS_KEY = "llm_monitor_snapshots";
 
 export async function recordSnapshot(
+  provider: ProviderType,
   currency: string,
   totalBalance: number,
   grantedBalance: number,
   toppedUpBalance: number
 ): Promise<void> {
   const snapshot: BalanceSnapshot = {
+    provider,
     timestamp: new Date().toISOString(),
     currency,
     totalBalance,
@@ -31,7 +33,8 @@ export async function recordSnapshot(
 }
 
 export async function getLatestSnapshot(
-  currency: string = "CNY"
+  currency: string = "CNY",
+  provider?: ProviderType
 ): Promise<BalanceSnapshot | null> {
   const raw = await AsyncStorage.getItem(SNAPSHOTS_KEY);
   if (!raw) return null;
@@ -39,6 +42,7 @@ export async function getLatestSnapshot(
   const snapshots: BalanceSnapshot[] = JSON.parse(raw);
   const matching = snapshots
     .filter((s) => s.currency === currency)
+    .filter((s) => (provider ? s.provider === provider : true))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   return matching[0] || null;
@@ -46,7 +50,8 @@ export async function getLatestSnapshot(
 
 export async function getDailyUsage(
   days: number = 7,
-  currency: string = "CNY"
+  currency: string = "CNY",
+  provider?: ProviderType
 ): Promise<DailyUsage[]> {
   const raw = await AsyncStorage.getItem(SNAPSHOTS_KEY);
   if (!raw) return [];
@@ -54,6 +59,7 @@ export async function getDailyUsage(
   const allSnapshots: BalanceSnapshot[] = JSON.parse(raw);
   const snapshots = allSnapshots
     .filter((s) => s.currency === currency)
+    .filter((s) => (provider ? s.provider === provider : true))
     .sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
@@ -116,6 +122,7 @@ export async function getDailyUsage(
 
     result.push({
       date: dayStart.toISOString().split("T")[0],
+      provider: provider ?? "deepseek",
       currency,
       balanceStart: startSnapshot.totalBalance,
       balanceEnd: endSnapshot.totalBalance,

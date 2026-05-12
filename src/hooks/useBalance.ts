@@ -1,49 +1,77 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { BalanceResult, BalanceInfo } from "../types";
+import { ProviderBalanceState, ProviderType, RateLimitInfo } from "../types";
 import { getProvider } from "../api";
 import { loadSettings } from "../storage/settings";
 import { recordSnapshot } from "../storage/balanceHistory";
 
+const ALL_PROVIDERS: ProviderType[] = ["deepseek", "openai", "anthropic", "gemini"];
+
+function emptyState(provider: ProviderType): ProviderBalanceState {
+  return {
+    provider,
+    balance: null,
+    rateLimits: null,
+    isLoading: false,
+    error: null,
+    lastRefreshed: null,
+  };
+}
+
 interface UseBalanceReturn {
-  balanceResult: BalanceResult | null;
-  totalBalance: number;
-  isLoading: boolean;
-  error: string | null;
-  lastRefreshed: Date | null;
-  refresh: () => Promise<BalanceResult | null>;
+  states: ProviderBalanceState[];
+  refreshAll: () => Promise<void>;
+  refreshOne: (provider: ProviderType) => Promise<void>;
+  isAnyLoading: boolean;
 }
 
 export function useBalance(): UseBalanceReturn {
-  const [balanceResult, setBalanceResult] = useState<BalanceResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [states, setStates] = useState<ProviderBalanceState[]>(
+    ALL_PROVIDERS.map(emptyState)
+  );
   const isMounted = useRef(true);
 
-  const refresh = useCallback(async (): Promise<BalanceResult | null> => {
-    setIsLoading(true);
-    setError(null);
+  const refreshOne = useCallback(async (provider: ProviderType) => {
+    setStates((prev) =>
+      prev.map((s) =>
+        s.provider === provider ? { ...s, isLoading: true, error: null } : s
+      )
+    );
 
     try {
       const settings = await loadSettings();
-      if (!settings.apiKey) {
-        setError("请先设置 API Key");
-        setIsLoading(false);
-        return null;
+      const ps = settings.providers[provider];
+      if (!ps?.apiKey) {
+        setStates((prev) =>
+          prev.map((s) =>
+            s.provider === provider
+              ? { ...s, isLoading: false, error: "未配置 API Key" }
+              : s
+          )
+        );
+        return;
       }
 
-      const provider = getProvider(settings.provider);
-      if (!provider) {
-        setError(`不支持的提供商: ${settings.provider}`);
-        setIsLoading(false);
-        return null;
+      const api = getProvider(provider);
+      if (!api) {
+        setStates((prev) =>
+          prev.map((s) =>
+            s.provider === provider
+              ? { ...s, isLoading: false, error: `不支持的提供商: ${provider}` }
+              : s
+          )
+        );
+        return;
       }
 
-      const result = await provider.getBalance(settings.apiKey);
+      const [balance, rateLimits] = await Promise.all([
+        api.getBalance(ps.apiKey),
+        api.getRateLimits ? api.getRateLimits(ps.apiKey).catch(() => null) : null,
+      ]);
 
-      // Record snapshots for history
-      for (const info of result.balanceInfos) {
+      // Record snapshots
+      for (const info of balance.balanceInfos) {
         await recordSnapshot(
+          provider,
           info.currency,
           info.totalBalance,
           info.grantedBalance,
@@ -52,35 +80,53 @@ export function useBalance(): UseBalanceReturn {
       }
 
       if (isMounted.current) {
-        setBalanceResult(result);
-        setLastRefreshed(new Date());
+        setStates((prev) =>
+          prev.map((s) =>
+            s.provider === provider
+              ? {
+                  ...s,
+                  balance,
+                  rateLimits,
+                  isLoading: false,
+                  error: null,
+                  lastRefreshed: new Date(),
+                }
+              : s
+          )
+        );
       }
-
-      return result;
     } catch (e) {
       if (isMounted.current) {
-        setError(e instanceof Error ? e.message : "获取余额失败");
-      }
-      return null;
-    } finally {
-      if (isMounted.current) {
-        setIsLoading(false);
+        setStates((prev) =>
+          prev.map((s) =>
+            s.provider === provider
+              ? {
+                  ...s,
+                  isLoading: false,
+                  error: e instanceof Error ? e.message : "获取数据失败",
+                }
+              : s
+          )
+        );
       }
     }
   }, []);
 
+  const refreshAll = useCallback(async () => {
+    const settings = await loadSettings();
+    const configured = ALL_PROVIDERS.filter((p) => settings.providers[p]?.apiKey);
+    await Promise.all(configured.map((p) => refreshOne(p)));
+  }, [refreshOne]);
+
+  // Initial refresh
   useEffect(() => {
-    refresh();
+    refreshAll();
     return () => {
       isMounted.current = false;
     };
-  }, [refresh]);
+  }, [refreshAll]);
 
-  const totalBalance =
-    balanceResult?.balanceInfos.reduce(
-      (sum: number, b: BalanceInfo) => sum + b.totalBalance,
-      0
-    ) ?? 0;
+  const isAnyLoading = states.some((s) => s.isLoading);
 
-  return { balanceResult, totalBalance, isLoading, error, lastRefreshed, refresh };
+  return { states, refreshAll, refreshOne, isAnyLoading };
 }

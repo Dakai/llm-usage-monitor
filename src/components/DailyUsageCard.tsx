@@ -1,10 +1,18 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { DailyUsage } from "../types";
+import { DailyUsage, ProviderType } from "../types";
 import { colors, spacing, borderRadius, fontSize } from "../theme";
+
+const PROVIDER_DOT_COLORS: Record<ProviderType, string> = {
+  deepseek: colors.primary,
+  openai: "#10A37F",
+  anthropic: "#D97757",
+  gemini: "#4285F4",
+};
 
 interface Props {
   usage: DailyUsage;
+  provider?: ProviderType;
 }
 
 function formatDate(isoDate: string): string {
@@ -37,12 +45,22 @@ function formatTokens(count: number): string {
   return `~${rounded} tokens`;
 }
 
-export default function DailyUsageCard({ usage }: Props) {
+export default function DailyUsageCard({ usage, provider }: Props) {
   const isZeroCost = usage.cost === 0;
 
   return (
     <View style={styles.card}>
-      <Text style={styles.dateText}>{formatDate(usage.date)}</Text>
+      <View style={styles.leftSection}>
+        {provider && (
+          <View
+            style={[
+              styles.providerDot,
+              { backgroundColor: PROVIDER_DOT_COLORS[provider] },
+            ]}
+          />
+        )}
+        <Text style={styles.dateText}>{formatDate(usage.date)}</Text>
+      </View>
       <Text
         style={[
           styles.costText,
@@ -75,11 +93,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.sm,
   },
+  leftSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: 60,
+  },
+  providerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: spacing.xs,
+  },
   dateText: {
     color: colors.textSecondary,
     fontSize: fontSize.sm,
     fontWeight: "600",
-    width: 52,
     fontVariant: ["tabular-nums"],
   },
   costText: {

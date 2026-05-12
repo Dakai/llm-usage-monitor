@@ -43,8 +43,9 @@ export default function App() {
 
       try {
         const settings = await loadSettings();
-        if (settings.apiKey) {
-          await registerBackgroundFetch(settings.refreshIntervalMin);
+        const hasAnyKey = Object.values(settings.providers).some((p) => p?.apiKey);
+        if (hasAnyKey) {
+          await registerBackgroundFetch(settings.defaultRefreshIntervalMin);
         }
       } catch (error) {
         console.warn("Failed to initialize background fetch:", error);

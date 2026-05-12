@@ -44,6 +44,13 @@ export const fontSize = {
   hero: 48,
 } as const;
 
+export const providerColors: Record<string, string> = {
+  deepseek: "#1E90FF",
+  openai: "#10A37F",
+  anthropic: "#D97757",
+  gemini: "#4285F4",
+} as const;
+
 export const shadows = {
   card: {
     shadowColor: "#000",
