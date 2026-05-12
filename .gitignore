@@ -114,7 +114,7 @@ yarn-error.log
 #EAS Build will run Prebuild to generate these native directories before compilation. 
 #This is the default behavior for any project created using npx create-expo-app.
 
-android/
-ios/
+/android/
+/ios/
 
 credentials.json
