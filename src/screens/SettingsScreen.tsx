@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   LayoutAnimation,
-  UIManager,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,14 +19,6 @@ import { useSettings } from "../hooks/useSettings";
 import { getAvailableProviders, getProvider } from "../api";
 import { AppSettings, ProviderSettings, ProviderType } from "../types";
 import { colors, spacing, borderRadius, fontSize, fonts, providerColors } from "../theme";
-
-// Enable LayoutAnimation on Android
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 // ── Constants ─────────────────────────────────────────────────────
 

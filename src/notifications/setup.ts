@@ -6,7 +6,6 @@ export const STATS_NOTIFICATION_ID = "stats-display";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
     shouldShowBanner: true,
